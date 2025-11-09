@@ -8,6 +8,8 @@ from typing import Iterable, Optional
 import numpy as np
 import pandas as pd
 
+from ..utils.timeseries import ensure_datetime_index
+
 
 def _to_series(values: Iterable[float] | pd.Series) -> pd.Series:
     series = pd.Series(values).dropna()
@@ -114,6 +116,55 @@ def cagr_percent(
     return value * 100.0
 
 
+def _period_returns(
+    returns: Iterable[float] | pd.Series,
+    period: str,
+) -> pd.Series:
+    series = ensure_datetime_index(_to_series(returns))
+    period_map = {
+        "day": "D",
+        "daily": "D",
+        "week": "W",
+        "weekly": "W",
+        "month": "M",
+        "monthly": "M",
+        "quarter": "Q",
+        "quarterly": "Q",
+        "year": "A",
+        "annual": "A",
+        "yearly": "A",
+    }
+    freq = period_map.get(period.lower())
+    if freq is None:
+        raise ValueError("period must be one of day/week/month/quarter/year")
+    grouped = (1 + series).groupby(pd.Grouper(freq=freq)).prod() - 1
+    return grouped.dropna()
+
+
+def best_period_return(
+    returns: Iterable[float] | pd.Series,
+    period: str = "day",
+) -> float:
+    """Best compounded return for the supplied period, expressed as a percentage."""
+
+    grouped = _period_returns(returns, period)
+    if grouped.empty:
+        return float("nan")
+    return float(grouped.max() * 100.0)
+
+
+def worst_period_return(
+    returns: Iterable[float] | pd.Series,
+    period: str = "day",
+) -> float:
+    """Worst compounded return for the supplied period, expressed as a percentage."""
+
+    grouped = _period_returns(returns, period)
+    if grouped.empty:
+        return float("nan")
+    return float(grouped.min() * 100.0)
+
+
 __all__ = [
     "skewness",
     "skew",
@@ -122,4 +173,6 @@ __all__ = [
     "volatility",
     "cagr",
     "cagr_percent",
+    "best_period_return",
+    "worst_period_return",
 ]

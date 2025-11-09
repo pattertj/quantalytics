@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 
 from quantalytics.stats import (
+    best_period_return,
     cagr,
     cagr_percent,
     kurtosis,
@@ -9,6 +10,7 @@ from quantalytics.stats import (
     skewness,
     total_return,
     volatility,
+    worst_period_return,
 )
 
 
@@ -47,3 +49,26 @@ def test_cagr_percent_scales_value():
     returns = pd.Series([0.001] * 252)
     value = cagr(returns, periods_per_year=252)
     assert cagr_percent(returns, periods_per_year=252) == pytest.approx(value * 100)
+
+
+def test_best_and_worst_period_returns_per_day():
+    dates = pd.date_range("2024-01-01", periods=5, freq="D")
+    returns = pd.Series([0.01, -0.02, 0.03, -0.01, 0.02], index=dates)
+    assert best_period_return(returns, period="day") == pytest.approx(3.0)
+    assert worst_period_return(returns, period="day") == pytest.approx(-2.0)
+
+
+def test_best_and_worst_period_returns_week():
+    dates = pd.date_range("2024-01-01", periods=10, freq="B")
+    returns = pd.Series([0.01] * 5 + [-0.01] * 5, index=dates)
+    best_week = (1.01**5 - 1) * 100
+    worst_week = ((1 - 0.01) ** 5 - 1) * 100
+    assert best_period_return(returns, period="week") == pytest.approx(best_week)
+    assert worst_period_return(returns, period="week") == pytest.approx(worst_week)
+
+
+def test_period_validation_raises_value_error():
+    dates = pd.date_range("2024-01-01", periods=3, freq="D")
+    returns = pd.Series([0.01, 0.02, 0.03], index=dates)
+    with pytest.raises(ValueError):
+        best_period_return(returns, period="decade")
