@@ -9,8 +9,8 @@ from typing import Iterable, List, Optional
 import pandas as pd
 from jinja2 import Environment, FileSystemLoader
 
-from ..metrics.performance import performance_summary
 from ..charts.timeseries import cumulative_returns_chart, drawdown_chart, rolling_volatility_chart
+from ..metrics.performance import performance_summary
 
 _TEMPLATE_ENV = Environment(loader=FileSystemLoader(Path(__file__).parent / "templates"))
 
@@ -71,7 +71,7 @@ def render_basic_tearsheet(
         sections = [
             TearsheetSection(
                 title="Cumulative Returns",
-                description="Growth of \$1 invested in the strategy versus benchmark.",
+                description=r"Growth of $1 invested in the strategy versus benchmark.",
                 figure_html=_figure_to_html(cumulative_returns_chart(series, benchmark=benchmark)),
             ),
             TearsheetSection(

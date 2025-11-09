@@ -57,9 +57,7 @@ def _annualization_factor(freq: str | int | None, fallback: int = 252) -> int:
             "A": 1,
         }
         return freq_map.get(freq.upper(), fallback)
-    if isinstance(freq, int):
-        return freq
-    return fallback
+    return freq if isinstance(freq, int) else fallback
 
 
 def sharpe(
@@ -133,9 +131,7 @@ def calmar_ratio(
     ann_factor = _annualization_factor(periods_per_year)
     ann_return = (1 + series.mean()) ** ann_factor - 1
     mdd = abs(max_drawdown(series))
-    if mdd == 0 or math.isnan(mdd):
-        return float("nan")
-    return ann_return / mdd
+    return float("nan") if mdd == 0 or math.isnan(mdd) else ann_return / mdd
 
 
 def annualized_volatility(
@@ -165,11 +161,11 @@ def performance_summary(
     """Generate a collection of core performance metrics."""
 
     series = _to_series(returns)
-    cum_return = cumulative_returns(series).iloc[-1] if not series.empty else float("nan")
+    cum_return = float("nan") if series.empty else cumulative_returns(series).iloc[-1]
     ann_factor = _annualization_factor(periods_per_year)
     ann_ret = annualized_return(series, periods_per_year=ann_factor)
     ann_vol = annualized_volatility(series, periods_per_year=ann_factor)
-    sharpe = sharpe(series, risk_free_rate=risk_free_rate, periods_per_year=ann_factor)
+    sharpe_ratio = sharpe(series, risk_free_rate=risk_free_rate, periods_per_year=ann_factor)
     sortino = sortino_ratio(
         series,
         risk_free_rate=risk_free_rate,
@@ -183,7 +179,7 @@ def performance_summary(
     return PerformanceMetrics(
         annualized_return=ann_ret,
         annualized_volatility=ann_vol,
-        sharpe=sharpe,
+        sharpe=sharpe_ratio,
         sortino=sortino,
         calmar=calmar,
         max_drawdown=mdd,
