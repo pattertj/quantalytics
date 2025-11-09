@@ -69,3 +69,10 @@ Before submitting a PR or letting an AI agent finish a task:
 5. Update the Docusaurus docs and this technical guide when public behavior shifts.
 
 Following these steps keeps the package predictable for both humans and agents automating strategy analytics with Quantalytics.
+
+## Release Automation
+
+- Bump the version in `pyproject.toml` and merge the change to `main`.
+- Create a tag of the form `vX.Y.Z` and push it to GitHub.
+- The `Release` workflow validates the tag, builds the package, publishes to PyPI (using the `PYPI_API_TOKEN` secret), and drafts a GitHub release with the uploaded artifacts.
+- If the workflow fails, fix the issue, re-tag, and push again or rerun the workflow via `workflow_dispatch`.
