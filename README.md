@@ -23,72 +23,21 @@ pip install quantalytics
 import pandas as pd
 import quantalytics as qa
 
-returns = pd.Series([...], index=pd.date_range("2023-01-01", periods=252, freq="B"))
+returns = pd.Series(
+    [0.01, 0.02, -0.005, 0.015, -0.01, 0.03],
+    index=pd.date_range("2024-01-01", periods=6, freq="B"),
+)
 
-metrics = qa.metrics.performance_summary(returns)
-print(metrics)
-
-print("Skew:", qa.stats.skewness(returns))
-print("CAGR:", qa.stats.cagr(returns))
+summary = qa.metrics.performance_summary(returns)
+print(summary.sharpe, summary.calmar)
 
 fig = qa.charts.cumulative_returns_chart(returns)
 fig.show()
-
-tearsheet = qa.reports.render_basic_tearsheet(returns)
-tearsheet.to_html("tearsheet.html")
 ```
 
 ## Documentation
 
-Full documentation, tutorials, and API references are available at [https://quantalytics.dev/docs](https://quantalytics.dev/docs).
-
-## Development
-
-1. Create a virtual environment and install dependencies:
-
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate
-   pip install -e .[dev]
-   ```
-
-2. Run tests and linters:
-
-   ```bash
-   uv run pytest --cov=quantalytics --cov-report=term-missing --cov-fail-under=80
-   ruff check .
-   ```
-
-3. Install and run the git hooks (powered by `pre-commit` so every commit runs formatting, linting, vuln scans, and coverage-enforced tests—builds fail if total coverage drops below 80%):
-
-   ```bash
-   pre-commit install
-   pre-commit run --all-files
-   ```
-
-4. Start the documentation site:
-
-   ```bash
-   cd docs
-   npm install
-   npm run start
-   ```
-
-## Publishing
-
-1. Update the version in `pyproject.toml` following semantic versioning.
-2. Build the distribution:
-
-   ```bash
-   rm -rf dist/
-   python -m build
-   ```
-
-3. Upload to PyPI:
-
-   ```bash
-   twine upload dist/*
-   ```
+Full tutorials and API references live on our Docusaurus site: [https://quantalytics.dev/docs](https://quantalytics.dev/docs). Start with the introduction, then dive into the stats, metrics, charts, or reports guides as needed.
 
 ## License
 
