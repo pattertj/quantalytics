@@ -24,10 +24,10 @@ pip install quantalytics
 ```
 
 ```python
-from quantalytics import performance_summary
+import quantalytics as qa
 
-metrics = performance_summary(strategy_returns)
+metrics = qa.metrics.performance_summary(strategy_returns)
 print(metrics.as_dict())
 ```
 
-Next, explore the [metrics](./metrics.md) guide.
+Next, explore the [stats](./stats.md) and [metrics](./metrics.md) guides.

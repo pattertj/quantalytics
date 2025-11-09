@@ -1,5 +1,5 @@
 ---
-sidebar_position: 2
+sidebar_position: 3
 ---
 
 # Metrics
@@ -9,9 +9,9 @@ Quantalytics ships a curated set of risk/return statistics. All metric functions
 ## Performance Summary
 
 ```python
-from quantalytics import performance_summary
+import quantalytics as qa
 
-summary = performance_summary(returns, risk_free_rate=0.02)
+summary = qa.metrics.performance_summary(returns, risk_free_rate=0.02)
 summary.as_dict()
 ```
 
@@ -29,12 +29,12 @@ Fields available on `PerformanceMetrics`:
 ## Individual Metrics
 
 ```python
-from quantalytics import sharpe_ratio, sortino_ratio, calmar_ratio, max_drawdown
+import quantalytics as qa
 
-sharpe = sharpe_ratio(returns, risk_free_rate=0.015)
-sortino = sortino_ratio(returns, risk_free_rate=0.015, target_return=0.0)
-calmar = calmar_ratio(returns)
-drawdown = max_drawdown(returns)
+sharpe = qa.metrics.sharpe(returns, risk_free_rate=0.015)
+sortino = qa.metrics.sortino_ratio(returns, risk_free_rate=0.015, target_return=0.0)
+calmar = qa.metrics.calmar_ratio(returns)
+drawdown = qa.metrics.max_drawdown(returns)
 ```
 
 All metrics support customizing the `periods_per_year` argument to align with daily, weekly, or monthly data.

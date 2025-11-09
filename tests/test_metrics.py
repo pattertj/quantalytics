@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
-
-from quantalytics.metrics import performance_summary, sharpe_ratio, sortino_ratio, max_drawdown
+from quantalytics.metrics import max_drawdown, performance_summary, sharpe, sortino_ratio
 
 
 def sample_returns():
@@ -19,7 +18,7 @@ def test_performance_summary_runs():
 
 def test_sharpe_and_sortino_positive():
     returns = sample_returns()
-    assert sharpe_ratio(returns) > 0
+    assert sharpe(returns) > 0
     assert sortino_ratio(returns) > 0
 
 

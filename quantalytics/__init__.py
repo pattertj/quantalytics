@@ -1,39 +1,10 @@
 """Quantalytics: fast modern quantitative analytics library."""
 
-from .metrics.performance import (
-    performance_summary,
-    PerformanceMetrics,
-    sharpe_ratio,
-    sortino_ratio,
-    calmar_ratio,
-    max_drawdown,
-    downside_deviation,
-)
-from .charts.timeseries import (
-    cumulative_returns_chart,
-    rolling_volatility_chart,
-    drawdown_chart,
-)
-from .reporting.tearsheet import (
-    Tearsheet,
-    TearsheetSection,
-    TearsheetConfig,
-    render_basic_tearsheet,
-)
+# Organize the public surface into focused namespaces so consumers
+# access helpers via `quantalytics.metrics`, `quantalytics.stats`, `quantalytics.charts`, and `quantalytics.reports`.
+from . import charts as charts
+from . import metrics as metrics
+from . import stats as stats
+from . import reporting as reports
 
-__all__ = [
-    "PerformanceMetrics",
-    "performance_summary",
-    "sharpe_ratio",
-    "sortino_ratio",
-    "calmar_ratio",
-    "max_drawdown",
-    "downside_deviation",
-    "cumulative_returns_chart",
-    "rolling_volatility_chart",
-    "drawdown_chart",
-    "Tearsheet",
-    "TearsheetSection",
-    "TearsheetConfig",
-    "render_basic_tearsheet",
-]
+__all__ = ["metrics", "stats", "charts", "reports"]

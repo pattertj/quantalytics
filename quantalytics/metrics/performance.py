@@ -62,7 +62,7 @@ def _annualization_factor(freq: str | int | None, fallback: int = 252) -> int:
     return fallback
 
 
-def sharpe_ratio(
+def sharpe(
     returns: Iterable[float] | pd.Series,
     risk_free_rate: float = 0.0,
     periods_per_year: Optional[int | str] = None,
@@ -169,7 +169,7 @@ def performance_summary(
     ann_factor = _annualization_factor(periods_per_year)
     ann_ret = annualized_return(series, periods_per_year=ann_factor)
     ann_vol = annualized_volatility(series, periods_per_year=ann_factor)
-    sharpe = sharpe_ratio(series, risk_free_rate=risk_free_rate, periods_per_year=ann_factor)
+    sharpe = sharpe(series, risk_free_rate=risk_free_rate, periods_per_year=ann_factor)
     sortino = sortino_ratio(
         series,
         risk_free_rate=risk_free_rate,
@@ -195,7 +195,7 @@ def performance_summary(
 __all__ = [
     "PerformanceMetrics",
     "performance_summary",
-    "sharpe_ratio",
+    "sharpe",
     "sortino_ratio",
     "calmar_ratio",
     "max_drawdown",

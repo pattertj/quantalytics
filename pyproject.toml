@@ -31,14 +31,15 @@ classifiers = [
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Office/Business :: Financial :: Investment",
   "Topic :: Scientific/Engineering :: Information Analysis"
 ]
 
-[project.urls]
-Homepage = "https://quantalytics.dev"
-Documentation = "https://quantalytics.dev/docs/intro"
-Repository = "https://github.com/quantalytics/quantalytics"
+# [project.urls]
+# Homepage = "https://quantalytics.dev"
+# Documentation = "https://quantalytics.dev/docs/intro"
+# Repository = "https://github.com/quantalytics/quantalytics"
 
 [project.optional-dependencies]
 dev = [
@@ -49,7 +50,14 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["quantalytics", "quantalytics.metrics", "quantalytics.charts", "quantalytics.reporting", "quantalytics.utils"]
+packages = [
+    "quantalytics",
+    "quantalytics.metrics",
+    "quantalytics.stats",
+    "quantalytics.charts",
+    "quantalytics.reporting",
+    "quantalytics.utils",
+]
 include-package-data = true
 
 [tool.setuptools.package-data]

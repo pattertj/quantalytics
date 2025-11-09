@@ -4,6 +4,7 @@ Quantalytics is a fast, modern Python library for generating quantitative perfor
 
 ## Features
 
+- **Descriptive Stats** – Grab skew, kurtosis, total return, and CAGR via the lightweight `qa.stats` helpers.
 - **Performance Metrics** – Compute Sharpe, Sortino, Calmar, max drawdown, annualized returns/volatility, and more in a single call.
 - **Interactive Visuals** – Build Plotly-based charts for cumulative returns, rolling volatility, and drawdown analysis with sensible defaults.
 - **Beautiful Reports** – Produce responsive HTML tear sheets with configurable sections, ready to export to PDF.
@@ -20,17 +21,20 @@ pip install quantalytics
 
 ```python
 import pandas as pd
-from quantalytics import performance_summary, cumulative_returns_chart, render_basic_tearsheet
+import quantalytics as qa
 
 returns = pd.Series([...], index=pd.date_range("2023-01-01", periods=252, freq="B"))
 
-metrics = performance_summary(returns)
+metrics = qa.metrics.performance_summary(returns)
 print(metrics)
 
-fig = cumulative_returns_chart(returns)
+print("Skew:", qa.stats.skewness(returns))
+print("CAGR:", qa.stats.cagr(returns))
+
+fig = qa.charts.cumulative_returns_chart(returns)
 fig.show()
 
-tearsheet = render_basic_tearsheet(returns)
+tearsheet = qa.reports.render_basic_tearsheet(returns)
 tearsheet.to_html("tearsheet.html")
 ```
 
