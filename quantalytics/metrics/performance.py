@@ -103,7 +103,9 @@ def sortino_ratio(
     series = _to_series(returns)
     ann_factor = math.sqrt(_annualization_factor(periods_per_year))
     excess = series - risk_free_rate / _annualization_factor(periods_per_year)
-    dd = downside_deviation(series, target=target_return, periods_per_year=periods_per_year)
+    dd = downside_deviation(
+        series, target=target_return, periods_per_year=periods_per_year
+    )
     if dd == 0 or math.isnan(dd):
         return float("nan")
     return excess.mean() / dd * ann_factor
@@ -175,7 +177,9 @@ def performance_summary(
     ann_factor = _annualization_factor(periods_per_year)
     ann_ret = annualized_return(series, periods_per_year=ann_factor)
     ann_vol = annualized_volatility(series, periods_per_year=ann_factor)
-    sharpe_ratio = sharpe(series, risk_free_rate=risk_free_rate, periods_per_year=ann_factor)
+    sharpe_ratio = sharpe(
+        series, risk_free_rate=risk_free_rate, periods_per_year=ann_factor
+    )
     sortino = sortino_ratio(
         series,
         risk_free_rate=risk_free_rate,
@@ -282,7 +286,9 @@ def prob_sharpe_ratio(
 ) -> float:
     """Probability that the sample Sharpe ratio exceeds ``target_sharpe``."""
 
-    excess, sr, skew, kurt = _probability_inputs(returns, risk_free_rate, periods_per_year)
+    excess, sr, skew, kurt = _probability_inputs(
+        returns, risk_free_rate, periods_per_year
+    )
     if math.isnan(sr) or len(excess) < 3:
         return float("nan")
 
@@ -299,7 +305,9 @@ def smart_sharpe_ratio(
     """Sharpe ratio adjusted for higher moments."""
 
     series = _to_series(returns)
-    base = sharpe(series, risk_free_rate=risk_free_rate, periods_per_year=periods_per_year)
+    base = sharpe(
+        series, risk_free_rate=risk_free_rate, periods_per_year=periods_per_year
+    )
     if math.isnan(base):
         return base
 

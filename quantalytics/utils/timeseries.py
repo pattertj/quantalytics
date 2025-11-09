@@ -16,7 +16,9 @@ def ensure_datetime_index(series: Iterable[float] | pd.Series) -> pd.Series:
     return series.sort_index()
 
 
-def rolling_statistic(series: pd.Series, window: int, function: str = "mean") -> pd.Series:
+def rolling_statistic(
+    series: pd.Series, window: int, function: str = "mean"
+) -> pd.Series:
     """Compute a rolling statistic with sensible defaults."""
 
     if window <= 0:

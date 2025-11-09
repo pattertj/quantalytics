@@ -98,7 +98,9 @@ def test_longest_drawdown_days_counts_calendar_days():
 
 
 def test_underwater_percent_reflects_current_drawdown():
-    returns = pd.Series([0.02, -0.02, -0.01], index=pd.date_range("2024-01-01", periods=3, freq="D"))
+    returns = pd.Series(
+        [0.02, -0.02, -0.01], index=pd.date_range("2024-01-01", periods=3, freq="D")
+    )
     value = underwater_percent(returns)
     assert value > 0
 

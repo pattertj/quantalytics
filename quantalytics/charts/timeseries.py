@@ -45,7 +45,13 @@ def cumulative_returns_chart(
 
     fig = go.Figure()
     fig.add_trace(
-        go.Scatter(x=cum.index, y=cum, mode="lines", name="Strategy", line=dict(color=_COLOR_ACCENT))
+        go.Scatter(
+            x=cum.index,
+            y=cum,
+            mode="lines",
+            name="Strategy",
+            line=dict(color=_COLOR_ACCENT),
+        )
     )
 
     if benchmark is not None:
