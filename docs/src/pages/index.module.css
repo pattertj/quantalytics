@@ -1,0 +1,18 @@
+.buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+.features {
+  padding: 4rem 0;
+}
+
+.features h3 {
+  color: var(--ifm-color-primary);
+}
+
+.features p {
+  color: #4a5568;
+}
