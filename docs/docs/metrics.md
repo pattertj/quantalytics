@@ -35,6 +35,36 @@ sharpe = qa.metrics.sharpe(returns, risk_free_rate=0.015)
 sortino = qa.metrics.sortino_ratio(returns, risk_free_rate=0.015, target_return=0.0)
 calmar = qa.metrics.calmar_ratio(returns)
 drawdown = qa.metrics.max_drawdown(returns)
+romad = qa.metrics.romad(returns)
+omega = qa.metrics.omega_ratio(returns)
+max_dd_pct = qa.metrics.max_drawdown_percent(returns)
+longest_dd_days = qa.metrics.longest_drawdown_days(returns)
+underwater = qa.metrics.underwater_percent(returns)
 ```
 
 All metrics support customizing the `periods_per_year` argument to align with daily, weekly, or monthly data.
+
+## Tail Risk Metrics
+
+```python
+var = qa.metrics.value_at_risk(returns, confidence=0.95)
+cvar = qa.metrics.conditional_value_at_risk(returns, confidence=0.95)
+```
+
+- `value_at_risk` returns the historical loss magnitude you should not exceed with the specified confidence.
+- `conditional_value_at_risk` averages all losses beyond that VaR threshold (expected shortfall).
+
+## Advanced Risk Metrics
+
+```python
+prob = qa.metrics.prob_sharpe_ratio(returns, risk_free_rate=0.0, target_sharpe=0.5)
+smart_sharpe = qa.metrics.smart_sharpe_ratio(returns)
+smart_sortino = qa.metrics.smart_sortino_ratio(returns)
+smart_sortino_half = qa.metrics.smart_sortino_over_sqrt_two(returns)
+```
+
+- `prob_sharpe_ratio` returns the probability that your sample Sharpe exceeds a target.
+- `smart_sharpe_ratio` and `smart_sortino_ratio` adjust the classical measures for skew/kurtosis.
+- `/sqrt(2)` variants rescale Sortino-style ratios to account for half-normal downside distributions.
+- `omega_ratio` compares upside vs downside partial moments around a target threshold.
+- Use `max_drawdown_percent`, `longest_drawdown_days`, and `underwater_percent` to translate drawdown paths into presentation-ready KPIs.

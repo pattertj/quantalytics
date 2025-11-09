@@ -41,6 +41,12 @@ def skewness(returns: Iterable[float] | pd.Series) -> float:
     return series.skew()
 
 
+def skew(returns: Iterable[float] | pd.Series) -> float:
+    """Alias for ``skewness`` to match abbreviated naming."""
+
+    return skewness(returns)
+
+
 def kurtosis(
     returns: Iterable[float] | pd.Series,
     fisher: bool = True,
@@ -50,7 +56,10 @@ def kurtosis(
     series = _to_series(returns)
     if series.empty:
         return float("nan")
-    return series.kurtosis(fisher=fisher)
+    value = float(series.kurtosis())
+    if not fisher and not math.isnan(value):
+        return value + 3.0
+    return value
 
 
 def total_return(returns: Iterable[float] | pd.Series) -> float:
@@ -60,6 +69,15 @@ def total_return(returns: Iterable[float] | pd.Series) -> float:
     if series.empty:
         return float("nan")
     return float(np.prod(1 + series) - 1)
+
+
+def volatility(returns: Iterable[float] | pd.Series, ddof: int = 1) -> float:
+    """Realized (non-annualized) volatility expressed as standard deviation."""
+
+    series = _to_series(returns)
+    if series.empty:
+        return float("nan")
+    return float(series.std(ddof=ddof))
 
 
 def cagr(
@@ -84,4 +102,24 @@ def cagr(
     return math.pow(gross_return, 1 / years) - 1
 
 
-__all__ = ["skewness", "kurtosis", "total_return", "cagr"]
+def cagr_percent(
+    returns: Iterable[float] | pd.Series,
+    periods_per_year: Optional[int | str] = None,
+) -> float:
+    """Compound annual growth rate expressed in percent."""
+
+    value = cagr(returns, periods_per_year=periods_per_year)
+    if math.isnan(value):
+        return value
+    return value * 100.0
+
+
+__all__ = [
+    "skewness",
+    "skew",
+    "kurtosis",
+    "total_return",
+    "volatility",
+    "cagr",
+    "cagr_percent",
+]

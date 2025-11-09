@@ -9,6 +9,8 @@ from typing import Iterable, Optional
 import numpy as np
 import pandas as pd
 
+SQRT_TWO = math.sqrt(2.0)
+
 
 @dataclass
 class PerformanceMetrics:
@@ -112,13 +114,21 @@ def cumulative_returns(returns: Iterable[float] | pd.Series) -> pd.Series:
     return (1 + series).cumprod() - 1
 
 
+def _drawdown_path(series: pd.Series) -> pd.Series:
+    """Return drawdown series from cumulative returns."""
+
+    cum_returns = cumulative_returns(series)
+    running_max = (1 + cum_returns).cummax()
+    return (1 + cum_returns) / running_max - 1
+
+
 def max_drawdown(returns: Iterable[float] | pd.Series) -> float:
     """Compute the maximum drawdown from a series of returns."""
 
-    cum_returns = cumulative_returns(returns)
-    running_max = (1 + cum_returns).cummax()
-    drawdowns = (1 + cum_returns) / running_max - 1
-    return drawdowns.min()
+    series = _to_series(returns)
+    if series.empty:
+        return float("nan")
+    return _drawdown_path(series).min()
 
 
 def calmar_ratio(
@@ -188,6 +198,227 @@ def performance_summary(
     )
 
 
+def max_drawdown_percent(returns: Iterable[float] | pd.Series) -> float:
+    """Maximum drawdown expressed as a positive percentage."""
+
+    value = max_drawdown(returns)
+    if math.isnan(value):
+        return value
+    return abs(value) * 100.0
+
+
+def longest_drawdown_days(returns: Iterable[float] | pd.Series) -> float:
+    """Longest continuous drawdown stretch measured in days (or periods if index lacks dates)."""
+
+    series = _to_series(returns)
+    if series.empty:
+        return 0.0
+
+    drawdowns = _drawdown_path(series)
+    underwater = drawdowns < 0
+    if not bool(underwater.any()):
+        return 0.0
+
+    segments = (underwater != underwater.shift(fill_value=False)).cumsum()
+    max_days = 0.0
+    underwater_drawdowns = drawdowns[underwater]
+    segment_ids = segments[underwater]
+
+    for _, segment in underwater_drawdowns.groupby(segment_ids):
+        index = segment.index
+        if isinstance(index, pd.DatetimeIndex):
+            delta = (index[-1] - index[0]).days + 1
+            days = max(1, delta)
+        else:
+            days = len(segment)
+        max_days = max(max_days, float(days))
+    return max_days
+
+
+def underwater_percent(returns: Iterable[float] | pd.Series) -> float:
+    """Current drawdown (underwater) value expressed as a percentage."""
+
+    series = _to_series(returns)
+    if series.empty:
+        return float("nan")
+
+    drawdowns = _drawdown_path(series)
+    current = drawdowns.iloc[-1]
+    if math.isnan(current):
+        return current
+    return abs(min(0.0, current)) * 100.0
+
+
+def romad(returns: Iterable[float] | pd.Series) -> float:
+    """Return over maximum drawdown."""
+
+    series = _to_series(returns)
+    if series.empty:
+        return float("nan")
+
+    total = cumulative_returns(series).iloc[-1]
+    mdd = abs(max_drawdown(series))
+    return float("nan") if mdd == 0 or math.isnan(mdd) else total / mdd
+
+
+def _probability_inputs(
+    returns: Iterable[float] | pd.Series,
+    risk_free_rate: float,
+    periods_per_year: Optional[int | str],
+) -> tuple[pd.Series, float, float, float]:
+    series = _to_series(returns)
+    ann_factor = _annualization_factor(periods_per_year)
+    excess = series - risk_free_rate / ann_factor
+    std = excess.std(ddof=1)
+    sharpe_like = float("nan") if std == 0 or math.isnan(std) else excess.mean() / std
+    return excess, sharpe_like, excess.skew(), excess.kurtosis()
+
+
+def prob_sharpe_ratio(
+    returns: Iterable[float] | pd.Series,
+    risk_free_rate: float = 0.0,
+    target_sharpe: float = 0.0,
+    periods_per_year: Optional[int | str] = None,
+) -> float:
+    """Probability that the sample Sharpe ratio exceeds ``target_sharpe``."""
+
+    excess, sr, skew, kurt = _probability_inputs(returns, risk_free_rate, periods_per_year)
+    if math.isnan(sr) or len(excess) < 3:
+        return float("nan")
+
+    denominator = math.sqrt(max(1e-12, 1 - skew * sr + ((kurt - 1) / 4.0) * (sr**2)))
+    z_score = (sr - target_sharpe) * math.sqrt(len(excess) - 1) / denominator
+    return 0.5 * (1 + math.erf(z_score / SQRT_TWO))
+
+
+def smart_sharpe_ratio(
+    returns: Iterable[float] | pd.Series,
+    risk_free_rate: float = 0.0,
+    periods_per_year: Optional[int | str] = None,
+) -> float:
+    """Sharpe ratio adjusted for higher moments."""
+
+    series = _to_series(returns)
+    base = sharpe(series, risk_free_rate=risk_free_rate, periods_per_year=periods_per_year)
+    if math.isnan(base):
+        return base
+
+    _, _, skew, kurt = _probability_inputs(series, risk_free_rate, periods_per_year)
+    adjustment = 1 + (skew / 6.0) * base - (kurt / 24.0) * (base**2)
+    return base * adjustment
+
+
+def smart_sortino_ratio(
+    returns: Iterable[float] | pd.Series,
+    risk_free_rate: float = 0.0,
+    target_return: float = 0.0,
+    periods_per_year: Optional[int | str] = None,
+) -> float:
+    """Sortino ratio adjusted for higher moments."""
+
+    base = sortino_ratio(
+        returns,
+        risk_free_rate=risk_free_rate,
+        target_return=target_return,
+        periods_per_year=periods_per_year,
+    )
+    if math.isnan(base):
+        return base
+
+    series = _to_series(returns)
+    skew = series.skew()
+    kurt = series.kurtosis()
+    adjustment = 1 + (skew / 6.0) * base - (kurt / 24.0) * (base**2)
+    return base * adjustment
+
+
+def sortino_over_sqrt_two(
+    returns: Iterable[float] | pd.Series,
+    risk_free_rate: float = 0.0,
+    target_return: float = 0.0,
+    periods_per_year: Optional[int | str] = None,
+) -> float:
+    """Sortino ratio scaled by sqrt(2)."""
+
+    value = sortino_ratio(
+        returns,
+        risk_free_rate=risk_free_rate,
+        target_return=target_return,
+        periods_per_year=periods_per_year,
+    )
+    return value if math.isnan(value) else value / SQRT_TWO
+
+
+def smart_sortino_over_sqrt_two(
+    returns: Iterable[float] | pd.Series,
+    risk_free_rate: float = 0.0,
+    target_return: float = 0.0,
+    periods_per_year: Optional[int | str] = None,
+) -> float:
+    """Smart Sortino ratio scaled by sqrt(2)."""
+
+    value = smart_sortino_ratio(
+        returns,
+        risk_free_rate=risk_free_rate,
+        target_return=target_return,
+        periods_per_year=periods_per_year,
+    )
+    return value if math.isnan(value) else value / SQRT_TWO
+
+
+def omega_ratio(
+    returns: Iterable[float] | pd.Series,
+    target_return: float = 0.0,
+) -> float:
+    """Omega ratio (upside partial moment divided by downside partial moment)."""
+
+    series = _to_series(returns)
+    if series.empty:
+        return float("nan")
+
+    gains = np.clip(series - target_return, a_min=0, a_max=None)
+    losses = np.clip(target_return - series, a_min=0, a_max=None)
+    loss_sum = float(losses.sum())
+    return float("inf") if loss_sum == 0 else float(gains.sum() / loss_sum)
+
+
+def value_at_risk(
+    returns: Iterable[float] | pd.Series,
+    confidence: float = 0.95,
+) -> float:
+    """Historical value-at-risk (positive loss) at the given confidence level."""
+
+    if not 0 < confidence < 1:
+        raise ValueError("confidence must be between 0 and 1")
+
+    series = _to_series(returns)
+    if series.empty:
+        return float("nan")
+
+    quantile = float(series.quantile(1 - confidence))
+    return max(0.0, -quantile)
+
+
+def conditional_value_at_risk(
+    returns: Iterable[float] | pd.Series,
+    confidence: float = 0.95,
+) -> float:
+    """Conditional VaR (expected shortfall) beyond the VaR threshold."""
+
+    if not 0 < confidence < 1:
+        raise ValueError("confidence must be between 0 and 1")
+
+    series = _to_series(returns)
+    if series.empty:
+        return float("nan")
+
+    var_threshold = series.quantile(1 - confidence)
+    tail = series[series <= var_threshold]
+    if tail.empty:
+        return 0.0
+    return float(-tail.mean())
+
+
 __all__ = [
     "PerformanceMetrics",
     "performance_summary",
@@ -195,8 +426,20 @@ __all__ = [
     "sortino_ratio",
     "calmar_ratio",
     "max_drawdown",
+    "max_drawdown_percent",
+    "longest_drawdown_days",
+    "underwater_percent",
     "downside_deviation",
     "cumulative_returns",
     "annualized_return",
     "annualized_volatility",
+    "romad",
+    "prob_sharpe_ratio",
+    "smart_sharpe_ratio",
+    "smart_sortino_ratio",
+    "sortino_over_sqrt_two",
+    "smart_sortino_over_sqrt_two",
+    "omega_ratio",
+    "value_at_risk",
+    "conditional_value_at_risk",
 ]

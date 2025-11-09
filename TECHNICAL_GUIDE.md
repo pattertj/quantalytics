@@ -45,7 +45,7 @@ If unsure, ask whether the function’s output could be computed by a statistics
 
 ## Testing Requirements
 
-- **Command**: all changes must pass `python -m pytest`. When `python` is unavailable in the environment, note that in your PR/commit message and run tests locally before merging.
+- **Command**: all changes must pass `uv run pytest`. When the command cannot execute (e.g., uv not installed), note it in your PR/commit message and run the suite locally before merging.
 - **Coverage**: pair every new public helper with at least one test that asserts numerical correctness (use `pytest.approx` when comparing floats).
 - **Determinism**: Seed any RNG usage (see `tests/test_metrics.py`’s `np.random.default_rng(42)` pattern).
 - **Negative paths**: if a helper raises for invalid input, add an explicit test (e.g., non-numeric data passed to `_to_series` equivalents).
@@ -62,7 +62,7 @@ Before submitting a PR or letting an AI agent finish a task:
 
 1. Ensure naming follows the clarity-first rule and the helper sits in the correct namespace.
 2. Run formatting/linting if configured (currently `ruff check .` in Development instructions).
-3. Run `python -m pytest` (or document why it could not run).
+3. Run `uv run pytest` (or document why it could not run).
 4. Update README quickstart/examples if the change affects core workflows.
 5. Update the Docusaurus docs and this technical guide when public behavior shifts.
 

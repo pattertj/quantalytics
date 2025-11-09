@@ -1,5 +1,13 @@
 """Statistical primitives for Quantalytics."""
 
-from .core import cagr, kurtosis, skewness, total_return
+from .core import cagr, cagr_percent, kurtosis, skew, skewness, total_return, volatility
 
-__all__ = ["skewness", "kurtosis", "total_return", "cagr"]
+__all__ = [
+    "skewness",
+    "skew",
+    "kurtosis",
+    "total_return",
+    "volatility",
+    "cagr",
+    "cagr_percent",
+]
