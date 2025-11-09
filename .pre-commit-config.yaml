@@ -3,6 +3,7 @@ repos:
     rev: v6.0.0
     hooks:
       - id: check-added-large-files
+        exclude: docs/package-lock\.json
       - id: check-merge-conflict
       - id: end-of-file-fixer
       - id: trailing-whitespace
@@ -26,6 +27,7 @@ repos:
     rev: v2.3.0
     hooks:
       - id: codespell
+        exclude: docs/package-lock\.json
         additional_dependencies: ["tomli>=1.1"]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
