@@ -55,11 +55,11 @@ Full documentation, tutorials, and API references are available at [https://quan
 2. Run tests and linters:
 
    ```bash
-   uv run pytest --cov=quantalytics --cov-report=term-missing
+   uv run pytest --cov=quantalytics --cov-report=term-missing --cov-fail-under=80
    ruff check .
    ```
 
-3. Install and run the git hooks (powered by `pre-commit` so every commit runs formatting, linting, vuln scans, and tests automatically):
+3. Install and run the git hooks (powered by `pre-commit` so every commit runs formatting, linting, vuln scans, and coverage-enforced tests—builds fail if total coverage drops below 80%):
 
    ```bash
    pre-commit install
