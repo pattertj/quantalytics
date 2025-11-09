@@ -2,6 +2,8 @@
 
 from .performance import (
     PerformanceMetrics,
+    average_drawdown,
+    average_drawdown_days,
     annualized_return,
     annualized_volatility,
     calmar_ratio,
@@ -13,14 +15,17 @@ from .performance import (
     omega_ratio,
     performance_summary,
     prob_sharpe_ratio,
+    recovery_factor,
     romad,
     sharpe,
+    serenity_index,
     smart_sharpe_ratio,
     smart_sortino_over_sqrt_two,
     smart_sortino_ratio,
     sortino_over_sqrt_two,
     sortino_ratio,
     underwater_percent,
+    ulcer_index,
     value_at_risk,
 )
 
@@ -39,6 +44,7 @@ __all__ = [
     "annualized_volatility",
     "romad",
     "prob_sharpe_ratio",
+    "recovery_factor",
     "smart_sharpe_ratio",
     "smart_sortino_ratio",
     "sortino_over_sqrt_two",
@@ -46,4 +52,8 @@ __all__ = [
     "omega_ratio",
     "value_at_risk",
     "conditional_value_at_risk",
+    "average_drawdown",
+    "average_drawdown_days",
+    "ulcer_index",
+    "serenity_index",
 ]

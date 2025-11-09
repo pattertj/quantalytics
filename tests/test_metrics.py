@@ -1,8 +1,12 @@
+import math
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from quantalytics.metrics import (
+    average_drawdown,
+    average_drawdown_days,
     conditional_value_at_risk,
     longest_drawdown_days,
     max_drawdown,
@@ -10,12 +14,15 @@ from quantalytics.metrics import (
     omega_ratio,
     performance_summary,
     prob_sharpe_ratio,
+    recovery_factor,
     romad,
+    serenity_index,
     sharpe,
     smart_sharpe_ratio,
     smart_sortino_over_sqrt_two,
     sortino_over_sqrt_two,
     sortino_ratio,
+    ulcer_index,
     underwater_percent,
     value_at_risk,
 )
@@ -115,3 +122,26 @@ def test_var_and_cvar_return_positive_losses():
     expected_cvar = max(0.0, -returns[returns <= expected_var_threshold].mean())
     assert var == pytest.approx(expected_var)
     assert cvar == pytest.approx(expected_cvar)
+
+
+def test_average_drawdown_metrics():
+    dates = pd.date_range("2024-01-01", periods=6, freq="D")
+    returns = pd.Series([0.02, -0.01, -0.02, 0.01, -0.01, 0.03], index=dates)
+    avg_dd = average_drawdown(returns)
+    avg_days = average_drawdown_days(returns)
+    assert avg_dd > 0
+    assert avg_days > 0
+
+
+def test_recovery_factor_and_ulcer_index():
+    returns = pd.Series([0.02] * 10 + [-0.01] * 5 + [0.03] * 5)
+    rec = recovery_factor(returns)
+    ulcer = ulcer_index(returns)
+    assert rec > 0
+    assert ulcer >= 0
+
+
+def test_serenity_index_positive_for_consistent_returns():
+    returns = pd.Series([0.001] * 252)
+    value = serenity_index(returns, periods_per_year=252)
+    assert math.isinf(value)

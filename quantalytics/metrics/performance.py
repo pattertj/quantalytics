@@ -124,13 +124,27 @@ def _drawdown_path(series: pd.Series) -> pd.Series:
     return (1 + cum_returns) / running_max - 1
 
 
+def _drawdown_segments(series: pd.Series) -> tuple[pd.Series, list[pd.Series]]:
+    drawdowns = _drawdown_path(series)
+    underwater = drawdowns < 0
+    if not bool(underwater.any()):
+        return drawdowns, []
+
+    segment_ids = (underwater != underwater.shift(fill_value=False)).cumsum()
+    segments = [
+        segment for _, segment in drawdowns[underwater].groupby(segment_ids[underwater])
+    ]
+    return drawdowns, segments
+
+
 def max_drawdown(returns: Iterable[float] | pd.Series) -> float:
     """Compute the maximum drawdown from a series of returns."""
 
     series = _to_series(returns)
     if series.empty:
         return float("nan")
-    return _drawdown_path(series).min()
+    drawdowns, _ = _drawdown_segments(series)
+    return drawdowns.min()
 
 
 def calmar_ratio(
@@ -218,17 +232,12 @@ def longest_drawdown_days(returns: Iterable[float] | pd.Series) -> float:
     if series.empty:
         return 0.0
 
-    drawdowns = _drawdown_path(series)
-    underwater = drawdowns < 0
-    if not bool(underwater.any()):
+    _, segments = _drawdown_segments(series)
+    if not segments:
         return 0.0
 
-    segments = (underwater != underwater.shift(fill_value=False)).cumsum()
     max_days = 0.0
-    underwater_drawdowns = drawdowns[underwater]
-    segment_ids = segments[underwater]
-
-    for _, segment in underwater_drawdowns.groupby(segment_ids):
+    for segment in segments:
         index = segment.index
         if isinstance(index, pd.DatetimeIndex):
             delta = (index[-1] - index[0]).days + 1
@@ -246,11 +255,103 @@ def underwater_percent(returns: Iterable[float] | pd.Series) -> float:
     if series.empty:
         return float("nan")
 
-    drawdowns = _drawdown_path(series)
+    drawdowns, _ = _drawdown_segments(series)
     current = drawdowns.iloc[-1]
     if math.isnan(current):
         return current
     return abs(min(0.0, current)) * 100.0
+
+
+def average_drawdown(returns: Iterable[float] | pd.Series) -> float:
+    """Average drawdown depth (positive percentage)."""
+
+    series = _to_series(returns)
+    if series.empty:
+        return float("nan")
+
+    _, segments = _drawdown_segments(series)
+    if not segments:
+        return 0.0
+
+    depths = [abs(segment.min()) for segment in segments if not segment.empty]
+    if not depths:
+        return 0.0
+    return float(np.mean(depths) * 100.0)
+
+
+def average_drawdown_days(returns: Iterable[float] | pd.Series) -> float:
+    """Average duration (in days) of drawdown periods."""
+
+    series = _to_series(returns)
+    if series.empty:
+        return 0.0
+
+    _, segments = _drawdown_segments(series)
+    if not segments:
+        return 0.0
+
+    durations: list[float] = []
+    for segment in segments:
+        index = segment.index
+        if isinstance(index, pd.DatetimeIndex):
+            delta = (index[-1] - index[0]).days + 1
+            days = max(1, delta)
+        else:
+            days = len(segment)
+        durations.append(float(days))
+
+    return float(np.mean(durations)) if durations else 0.0
+
+
+def recovery_factor(returns: Iterable[float] | pd.Series) -> float:
+    """Recovery factor = cumulative return / |max drawdown|."""
+
+    series = _to_series(returns)
+    if series.empty:
+        return float("nan")
+
+    cum = cumulative_returns(series)
+    if cum.empty:
+        return float("nan")
+    total = cum.iloc[-1]
+    mdd = abs(max_drawdown(series))
+    if mdd == 0 or math.isnan(mdd):
+        return float("nan")
+    return total / mdd
+
+
+def ulcer_index(returns: Iterable[float] | pd.Series) -> float:
+    """Ulcer index calculated from squared drawdowns."""
+
+    series = _to_series(returns)
+    if series.empty:
+        return float("nan")
+
+    drawdowns, _ = _drawdown_segments(series)
+    squared = np.square(np.clip(drawdowns, a_max=0.0, a_min=None) * 100.0)
+    if len(squared) == 0:
+        return 0.0
+    return float(math.sqrt(np.mean(squared)))
+
+
+def serenity_index(
+    returns: Iterable[float] | pd.Series,
+    periods_per_year: Optional[int | str] = None,
+) -> float:
+    """Serenity index approximated as annualized return (%) divided by Ulcer index."""
+
+    series = _to_series(returns)
+    if series.empty:
+        return float("nan")
+
+    ann_factor = _annualization_factor(periods_per_year)
+    ann_return = annualized_return(series, periods_per_year=ann_factor) * 100.0
+    ulcer = ulcer_index(series)
+    if math.isnan(ulcer):
+        return float("nan")
+    if ulcer == 0:
+        return float("inf") if ann_return > 0 else 0.0
+    return ann_return / ulcer
 
 
 def romad(returns: Iterable[float] | pd.Series) -> float:

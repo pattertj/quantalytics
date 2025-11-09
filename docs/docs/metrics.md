@@ -40,6 +40,11 @@ omega = qa.metrics.omega_ratio(returns)
 max_dd_pct = qa.metrics.max_drawdown_percent(returns)
 longest_dd_days = qa.metrics.longest_drawdown_days(returns)
 underwater = qa.metrics.underwater_percent(returns)
+avg_dd = qa.metrics.average_drawdown(returns)
+avg_dd_days = qa.metrics.average_drawdown_days(returns)
+recovery = qa.metrics.recovery_factor(returns)
+ulcer = qa.metrics.ulcer_index(returns)
+serenity = qa.metrics.serenity_index(returns)
 ```
 
 All metrics support customizing the `periods_per_year` argument to align with daily, weekly, or monthly data.
@@ -68,3 +73,5 @@ smart_sortino_half = qa.metrics.smart_sortino_over_sqrt_two(returns)
 - `/sqrt(2)` variants rescale Sortino-style ratios to account for half-normal downside distributions.
 - `omega_ratio` compares upside vs downside partial moments around a target threshold.
 - Use `max_drawdown_percent`, `longest_drawdown_days`, and `underwater_percent` to translate drawdown paths into presentation-ready KPIs.
+- `average_drawdown`, `average_drawdown_days`, and `recovery_factor` capture typical drawdown depth/duration and how quickly returns reclaim new highs.
+- `ulcer_index` and `serenity_index` summarize drawdown variability and annualized-growth efficiency in a single score.
