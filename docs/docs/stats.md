@@ -17,6 +17,7 @@ cagr_pct = qa.stats.cagr_percent(returns, periods_per_year=252)
 vol = qa.stats.volatility(returns)
 best_day = qa.stats.best_period_return(returns, period="day")
 worst_month = qa.stats.worst_period_return(returns, period="month")
+win_rate = qa.stats.win_rate(returns, period="week")
 ```
 
 - `skewness` and `kurtosis` operate directly on raw returns (or any numeric iterable) and drop missing values.
@@ -24,5 +25,6 @@ worst_month = qa.stats.worst_period_return(returns, period="month")
 - `cagr`/`cagr_percent` annualize growth by the sampling frequency you specify (defaults to daily bars).
 - `volatility` returns the realized (non-annualized) standard deviation so you can annualize or compare across sampling windows manually.
 - `best_period_return` / `worst_period_return` surface the highest/lowest compounded return for any period (`day|week|month|quarter|year`) and report the answer in percent terms for easy reporting.
+- `win_rate` tells you how often the strategy finished positive for the selected period, also in percent form.
 
 Combine these stats with `qa.metrics.performance_summary` to get a complete picture of the distribution and risk-adjusted results.

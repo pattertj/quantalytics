@@ -165,6 +165,19 @@ def worst_period_return(
     return float(grouped.min() * 100.0)
 
 
+def win_rate(
+    returns: Iterable[float] | pd.Series,
+    period: str = "day",
+) -> float:
+    """Win rate (percentage of positive periods) for the given frequency."""
+
+    grouped = _period_returns(returns, period)
+    if grouped.empty:
+        return float("nan")
+    wins = (grouped > 0).sum()
+    return float(wins / len(grouped) * 100.0)
+
+
 __all__ = [
     "skewness",
     "skew",
@@ -175,4 +188,5 @@ __all__ = [
     "cagr_percent",
     "best_period_return",
     "worst_period_return",
+    "win_rate",
 ]

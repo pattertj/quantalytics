@@ -10,6 +10,7 @@ from quantalytics.stats import (
     skewness,
     total_return,
     volatility,
+    win_rate,
     worst_period_return,
 )
 
@@ -72,3 +73,12 @@ def test_period_validation_raises_value_error():
     returns = pd.Series([0.01, 0.02, 0.03], index=dates)
     with pytest.raises(ValueError):
         best_period_return(returns, period="decade")
+
+
+def test_win_rate_daily_and_weekly():
+    dates = pd.date_range("2024-01-01", periods=6, freq="D")
+    returns = pd.Series([0.01, -0.02, 0.03, -0.01, 0.02, 0.0], index=dates)
+    assert win_rate(returns, period="day") == pytest.approx(50.0)
+    weekly_dates = pd.date_range("2024-01-01", periods=10, freq="B")
+    weekly_returns = pd.Series([0.01] * 5 + [-0.01] * 5, index=weekly_dates)
+    assert win_rate(weekly_returns, period="week") == pytest.approx(50.0)

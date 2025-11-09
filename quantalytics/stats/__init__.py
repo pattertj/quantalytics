@@ -9,6 +9,7 @@ from .core import (
     skewness,
     total_return,
     volatility,
+    win_rate,
     worst_period_return,
 )
 
@@ -21,5 +22,6 @@ __all__ = [
     "volatility",
     "cagr",
     "cagr_percent",
+    "win_rate",
     "worst_period_return",
 ]
