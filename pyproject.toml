@@ -1,0 +1,70 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = [
+  "setuptools>=64",
+  "wheel",
+]
+
+[project]
+name = "quantalytics"
+version = "0.1.0"
+description = "Modern quantitative analytics library for portfolio metrics, charts, and reports"
+readme = "README.md"
+keywords = [
+  "analytics",
+  "charts",
+  "finance",
+  "metrics",
+  "quantitative",
+  "reporting",
+]
+license = { file = "LICENSE" }
+authors = [
+  { name = "Quantalytics Contributors" }
+]
+requires-python = ">=3.9"
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Financial and Insurance Industry",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Office/Business :: Financial :: Investment",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+]
+dependencies = [
+  "jinja2>=3.1",
+  "matplotlib>=3.6",
+  "numpy>=1.23",
+  "pandas>=1.5",
+  "plotly>=5.15",
+  "scipy>=1.9",
+]
+[project.optional-dependencies]
+dev = [
+  "build>=1",
+  "pre-commit>=3.7",
+  "pytest>=7.4",
+  "pytest-cov>=5",
+  "ruff>=0.3",
+  "safety>=3.2",
+  "twine>=4",
+]
+
+[tool.setuptools]
+packages = [
+    "quantalytics",
+    "quantalytics.metrics",
+    "quantalytics.stats",
+    "quantalytics.charts",
+    "quantalytics.reporting",
+    "quantalytics.utils",
+]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"quantalytics.reporting" = ["templates/*.html"]

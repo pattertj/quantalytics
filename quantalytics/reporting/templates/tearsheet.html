@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>{{ title }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
+    />
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+        margin: 0;
+        padding: 0;
+        background: #f8f9fa;
+        color: #1f2933;
+      }
+      header {
+        background: linear-gradient(120deg, #264653, #2a9d8f);
+        color: white;
+        padding: 2rem 3rem;
+      }
+      header h1 {
+        margin: 0;
+        font-size: 2.5rem;
+      }
+      header p {
+        margin: 0.5rem 0 0;
+      }
+      .container {
+        padding: 2rem 3rem;
+      }
+      .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+      }
+      .metric-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1rem;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      }
+      .metric-card h3 {
+        margin: 0;
+        font-size: 0.95rem;
+        color: #6b7280;
+        font-weight: 500;
+      }
+      .metric-card p {
+        font-size: 1.4rem;
+        margin: 0.4rem 0 0;
+        font-weight: 700;
+      }
+      section {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      }
+      section h2 {
+        margin-top: 0;
+        color: #264653;
+      }
+      section p.description {
+        color: #475569;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>{{ title }}</h1>
+      {% if subtitle %}
+      <p>{{ subtitle }}</p>
+      {% endif %}
+    </header>
+    <div class="container">
+      <div class="metrics-grid">
+        {% for key, value in metrics.items() %}
+        <div class="metric-card">
+          <h3>{{ key.replace('_', ' ').title() }}</h3>
+          <p>{{ '{:.2%}'.format(value) if 'return' in key or 'drawdown' in key or 'volatility' in key else '{:.2f}'.format(value) }}</p>
+        </div>
+        {% endfor %}
+      </div>
+      {% for section in sections %}
+      <section>
+        <h2>{{ section.title }}</h2>
+        <p class="description">{{ section.description }}</p>
+        {% if section.figure_html %}
+        <div>{{ section.figure_html | safe }}</div>
+        {% endif %}
+      </section>
+      {% endfor %}
+    </div>
+  </body>
+</html>
