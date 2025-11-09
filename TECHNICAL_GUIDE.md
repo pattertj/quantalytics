@@ -70,9 +70,36 @@ Before submitting a PR or letting an AI agent finish a task:
 
 Following these steps keeps the package predictable for both humans and agents automating strategy analytics with Quantalytics.
 
-## Release Automation
+## Technical Resources
 
-- Bump the version in `pyproject.toml` and merge the change to `main`.
-- Create a tag of the form `vX.Y.Z` and push it to GitHub.
-- The `Release` workflow validates the tag, builds the package, publishes to PyPI (using the `PYPI_API_TOKEN` secret), and drafts a GitHub release with the uploaded artifacts.
-- If the workflow fails, fix the issue, re-tag, and push again or rerun the workflow via `workflow_dispatch`.
+### Development Workflow
+
+1. **Environment** – Create a virtualenv (`python -m venv .venv`), activate it, and run `pip install -e .[dev]`.
+2. **Tooling** – Use `uv` to execute commands (`uv run pytest ...`). Run `pre-commit install` once; hooks enforce formatting (Ruff), security (Bandit, Safety), and tests locally.
+3. **Docs** – Start Docusaurus in dev mode via `cd docs && npm install && npm run start` when editing guides.
+
+### Continuous Integration
+
+- **Pre-commit workflow** (`.github/workflows/pre-commit.yml`) runs on pushes/PRs. It installs `uv`, caches pre-commit environments, and runs every hook with coverage enforced (`--cov-fail-under=80`). Safety uses the `SAFETY_API_KEY` secret to authenticate scans.
+- **CodeQL** – Enable GitHub’s CodeQL workflow (Security tab) for additional static analysis. Without modification it runs weekly and on pull requests.
+- **Dependabot** – Configured via `.github/dependabot.yml` (add or update as needed) to raise PRs for pip and GitHub Actions dependencies.
+
+### Security & Maintenance Tooling
+
+- **Bandit** – Configured in `.pre-commit-config.yaml` to scan `quantalytics/` for insecure patterns before commits and in CI.
+- **Ruff** – Handles linting and formatting; shareable configuration lives in `pyproject.toml`.
+- **Safety** – Uses `uv.lock` as the definitive dependency list; hook automatically switches between `scan` (when `SAFETY_API_KEY` is present) and `check` for local, anonymous runs.
+- **CodeQL / Dependabot** – GitHub-native tooling ensures ongoing vulnerability scanning and dependency freshness.
+
+### Publishing
+
+1. Update `pyproject.toml` with the new version.
+2. Merge to `main`, then tag the release (`git tag -a vX.Y.Z -m "Release X.Y.Z"` and `git push origin vX.Y.Z`).
+3. The release workflow builds wheels/sdist, uploads to PyPI via `PYPI_API_TOKEN`, and drafts a GitHub release with artifacts.
+4. For manual releases, run `python -m build` and `twine upload dist/*` locally after ensuring the tests/hooks pass.
+
+### Troubleshooting CI
+
+- **Safety prompts** – Ensure `SAFETY_API_KEY` is configured in repo secrets; the workflow exports it as an env var.
+- **Coverage failures** – Increase test coverage above 80% or adjust the threshold only after team discussion.
+- **Pre-commit cache issues** – Bust cache by incrementing the key (edit `.pre-commit-config.yaml`, push the change).
