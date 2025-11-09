@@ -5,8 +5,8 @@ const config = {
   tagline: 'Fast, modern quantitative analysis in Python',
   favicon: 'img/favicon.ico',
 
-  url: 'https://quantalytics.dev',
-  baseUrl: '/',
+  url: 'https://pattertj.github.io',
+  baseUrl: '/quantalytics/',
 
   organizationName: 'quantalytics',
   projectName: 'quantalytics',
