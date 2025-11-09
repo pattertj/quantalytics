@@ -44,11 +44,11 @@ repos:
     hooks:
       - id: safety
         name: safety
-        entry: uv run --extra dev safety check --full-report --file uv.lock
+        entry: uv run --extra dev safety scan --full-report --file uv.lock
         language: system
         pass_filenames: false
       - id: pytest
         name: pytest
-        entry: uv run --extra dev pytest --cov=quantalytics --cov-report=term-missing --cov-fail-under=80
+        entry: uv run --extra dev pytest --cov=quantalytics --cov-report=term-missing --cov-fail-under=84
         language: system
         pass_filenames: false
