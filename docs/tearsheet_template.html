@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio Performance Tearsheet</title>
+    <link rel="stylesheet" href="https://unpkg.com/purecss@3.0.0/build/pure-min.css">
+    <link rel="stylesheet" href="https://unpkg.com/purecss@3.0.0/build/grids-responsive-min.css">
+    <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+    <style>
+        :root {
+            color-scheme: light;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+            background-color: #f8f9fb;
+            color: #1a1a1a;
+            margin: 0;
+            padding: 0 0 48px 0;
+        }
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+        h1, h2, h3, h4 {
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: #0d1a33;
+        }
+        h2 {
+            border-bottom: 2px solid #e0e6f0;
+            padding-bottom: 8px;
+            margin-top: 48px;
+        }
+        .section {
+            margin-top: 24px;
+        }
+        .card {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(13, 26, 51, 0.08);
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+        }
+        .metric {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .metric-label {
+            font-size: 0.85rem;
+            color: #4a5672;
+        }
+        .metric-value {
+            font-size: 1.25rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .metric-value.negative {
+            color: #d62728;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        th, td {
+            padding: 12px 8px;
+            text-align: right;
+            border-bottom: 1px solid #e3e8f5;
+        }
+        th {
+            text-align: left;
+            color: #1f2a44;
+            background-color: #f1f4fb;
+        }
+        tbody tr:nth-child(even) {
+            background-color: #f8f9fc;
+        }
+        tbody tr:hover {
+            background-color: #eef2fb;
+        }
+        .negative {
+            color: #d62728;
+        }
+        .pure-g {
+            gap: 16px;
+        }
+        .chart-container {
+            min-height: 300px;
+        }
+        .chart-card {
+            position: relative;
+        }
+        .chart-controls {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            display: flex;
+            gap: 8px;
+            z-index: 1;
+        }
+        .chart-button {
+            border: none;
+            background: rgba(255, 255, 255, 0.9);
+            color: #1f77b4;
+            padding: 6px 10px;
+            border-radius: 16px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-button:hover {
+            background-color: #1f77b4;
+            color: #fff;
+        }
+        .collapsible {
+            margin-top: 16px;
+        }
+        details summary {
+            cursor: pointer;
+            font-weight: 600;
+            padding: 8px 0;
+            color: #1f2a44;
+        }
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .tab-button {
+            border: 1px solid #1f77b4;
+            background: transparent;
+            color: #1f77b4;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .tab-button.active {
+            background-color: #1f77b4;
+            color: #fff;
+        }
+        .tab-panel {
+            display: none;
+        }
+        .tab-panel.active {
+            display: block;
+        }
+        .copy-notification {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: rgba(31, 119, 180, 0.95);
+            color: #fff;
+            padding: 12px 16px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            opacity: 0;
+            transform: translateY(12px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            pointer-events: none;
+            z-index: 999;
+        }
+        .copy-notification.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        @media (max-width: 768px) {
+            body {
+                padding: 0;
+            }
+            .container {
+                padding: 16px;
+            }
+            .chart-container {
+                min-height: 240px;
+            }
+        }
+        @media print {
+            body {
+                background: #fff;
+                color: #000;
+            }
+            .chart-controls,
+            .chart-button,
+            .tab-button,
+            .copy-notification,
+            details summary::after {
+                display: none !important;
+            }
+            .card {
+                box-shadow: none;
+                border: 1px solid #ccc;
+                page-break-inside: avoid;
+            }
+            .section {
+                margin-top: 16px;
+            }
+            details[open] > summary + * {
+                display: block !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1 id="portfolio-name">Portfolio Strategy Name</h1>
+            <p id="report-date">Report generated on: <span></span></p>
+            <div class="card">
+                <h3>Executive Summary</h3>
+                <div class="summary-grid" id="executive-summary"></div>
+            </div>
+            <div class="card" id="executive-overview">
+                <p id="executive-text">This strategy delivers steady returns with controlled drawdowns and competitive risk-adjusted performance relative to benchmarks.</p>
+            </div>
+        </header>
+
+        <section class="section" id="performance-analytics">
+            <h2>Performance Analytics</h2>
+            <div class="pure-g">
+                <div class="pure-u-1 pure-u-lg-2-3">
+                    <div class="card chart-card">
+                        <div class="chart-controls">
+                            <button class="chart-button" id="toggle-log-scale">Toggle Log Scale</button>
+                        </div>
+                        <h3>Cumulative Returns</h3>
+                        <div id="cumulative-returns-chart" class="chart-container"></div>
+                    </div>
+                    <div class="card chart-card">
+                        <h3>Underwater / Drawdown</h3>
+                        <div id="drawdown-chart" class="chart-container"></div>
+                    </div>
+                    <div class="card chart-card">
+                        <h3>Rolling 6-Month Returns</h3>
+                        <div id="rolling-returns-chart" class="chart-container"></div>
+                    </div>
+                </div>
+                <div class="pure-u-1 pure-u-lg-1-3">
+                    <div class="card">
+                        <details open class="collapsible">
+                            <summary>Period Returns</summary>
+                            <div id="period-returns-table"></div>
+                        </details>
+                        <details open class="collapsible">
+                            <summary>End-of-Year Returns</summary>
+                            <div id="eoy-returns-table"></div>
+                        </details>
+                        <details open class="collapsible">
+                            <summary>Best &amp; Worst Periods</summary>
+                            <div id="best-worst-table"></div>
+                        </details>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section" id="risk-analytics">
+            <h2>Risk Analytics</h2>
+            <div class="pure-g">
+                <div class="pure-u-1 pure-u-md-1-3">
+                    <div class="card">
+                        <h3>Risk-Adjusted Returns</h3>
+                        <div id="risk-adjusted-card"></div>
+                    </div>
+                </div>
+                <div class="pure-u-1 pure-u-md-1-3">
+                    <div class="card">
+                        <h3>Volatility &amp; Drawdown</h3>
+                        <div id="volatility-card"></div>
+                    </div>
+                </div>
+                <div class="pure-u-1 pure-u-md-1-3">
+                    <div class="card">
+                        <h3>Distribution &amp; Tail Risk</h3>
+                        <div id="distribution-card"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section" id="consistency-metrics">
+            <h2>Consistency Metrics</h2>
+            <div class="pure-g">
+                <div class="pure-u-1 pure-u-md-1-2">
+                    <div class="card chart-card">
+                        <h3>Monthly Returns Heatmap</h3>
+                        <div id="monthly-heatmap" class="chart-container"></div>
+                    </div>
+                </div>
+                <div class="pure-u-1 pure-u-md-1-2">
+                    <div class="card chart-card">
+                        <h3>Win Rate Progression</h3>
+                        <div id="win-rate-chart" class="chart-container"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <h3>Consistency Metrics</h3>
+                <div id="consistency-table"></div>
+            </div>
+        </section>
+
+        <section class="section" id="drawdown-analysis">
+            <h2>Drawdown Analysis</h2>
+            <div class="card chart-card">
+                <h3>Top Drawdown Periods</h3>
+                <div id="drawdown-periods-chart" class="chart-container"></div>
+            </div>
+            <div class="card">
+                <h3>Worst 10 Drawdowns</h3>
+                <div id="worst-drawdowns-table"></div>
+            </div>
+        </section>
+
+        <section class="section" id="additional-analytics">
+            <h2>Additional Analytics</h2>
+            <div class="card">
+                <div class="tabs">
+                    <button class="tab-button active" data-tab="rolling-vol">Rolling Volatility</button>
+                    <button class="tab-button" data-tab="rolling-sharpe">Rolling Sharpe</button>
+                    <button class="tab-button" data-tab="returns-dist">Returns Distribution</button>
+                </div>
+                <div id="rolling-vol" class="tab-panel active">
+                    <div id="rolling-vol-chart" class="chart-container"></div>
+                </div>
+                <div id="rolling-sharpe" class="tab-panel">
+                    <div id="rolling-sharpe-chart" class="chart-container"></div>
+                </div>
+                <div id="returns-dist" class="tab-panel">
+                    <div id="returns-dist-chart" class="chart-container"></div>
+                </div>
+            </div>
+        </section>
+    </div>
+    <div class="copy-notification" id="copy-notification">Copied to clipboard</div>
+
+    <script>
+        const reportData = {
+            portfolio_name: "Global Tactical Allocation",
+            report_date: new Date().toISOString(),
+            executive_summary: {
+                total_return: 0.8421,
+                cagr: 0.1234,
+                sharpe_ratio: 1.52,
+                max_drawdown: -0.182,
+                time_in_market: 0.92,
+                monthly_win_rate: 0.63
+            },
+            executive_text: "The strategy has delivered consistent alpha with strong downside protection, maintaining exposure across market cycles while keeping drawdowns contained.",
+            metrics: {
+                probabilistic_sharpe: 1.34,
+                sortino_ratio: 2.15,
+                smart_sortino: 1.98,
+                calmar_ratio: 1.75,
+                omega_ratio: 1.42,
+                romad: 1.61,
+                annualized_volatility: 0.112,
+                max_drawdown: { value: -0.182, duration: 128 },
+                average_drawdown: -0.045,
+                recovery_factor: 2.85,
+                ulcer_index: 3.2,
+                skewness: 0.35,
+                kurtosis: 4.1,
+                daily_var: -0.025,
+                expected_shortfall: -0.034,
+                serenity_index: 1.12,
+                time_in_market: 0.92,
+                days_underwater_count: 420,
+                days_underwater_pct: 0.26,
+                avg_up_month: 0.021,
+                avg_down_month: -0.013,
+                win_loss_days: { win: 620, loss: 410 },
+                best_periods: {
+                    day: { period: "2023-03-15", value: 0.024 },
+                    month: { period: "2021-11", value: 0.064 },
+                    year: { period: "2020", value: 0.182 }
+                },
+                worst_periods: {
+                    day: { period: "2022-06-13", value: -0.031 },
+                    month: { period: "2022-06", value: -0.058 },
+                    year: { period: "2022", value: -0.072 }
+                }
+            },
+            period_returns: {
+                MTD: 0.012,
+                "3M": 0.045,
+                "6M": 0.082,
+                YTD: 0.094,
+                "1Y": 0.123,
+                "3Y": 0.295,
+                "5Y": 0.482,
+                "10Y": 0.812,
+                "All-time": 0.842
+            },
+            eoy_returns: [
+                { year: 2019, annual_return: 0.132, cumulative_return: 0.132 },
+                { year: 2020, annual_return: 0.182, cumulative_return: 0.362 },
+                { year: 2021, annual_return: 0.146, cumulative_return: 0.561 },
+                { year: 2022, annual_return: -0.072, cumulative_return: 0.452 },
+                { year: 2023, annual_return: 0.184, cumulative_return: 0.689 },
+                { year: 2024, annual_return: 0.153, cumulative_return: 0.842 }
+            ],
+            returns_series: Array.from({ length: 60 }, (_, i) => {
+                const date = new Date(2019, 0, 1);
+                date.setMonth(date.getMonth() + i);
+                const monthlyReturn = (Math.sin(i / 4) + 1) / 50 - 0.01;
+                return {
+                    date: date.toISOString().split('T')[0],
+                    return: monthlyReturn,
+                    cumulative_return: (i === 0 ? 1 : undefined)
+                };
+            }).map((d, i, arr) => {
+                if (i === 0) {
+                    d.cumulative_return = 1 + d.return;
+                } else {
+                    d.cumulative_return = arr[i - 1].cumulative_return * (1 + d.return);
+                }
+                return d;
+            }),
+            drawdown_series: Array.from({ length: 60 }, (_, i) => {
+                const date = new Date(2019, 0, 1);
+                date.setMonth(date.getMonth() + i);
+                return {
+                    date: date.toISOString().split('T')[0],
+                    drawdown_pct: -Math.abs(Math.sin(i / 6) / 5)
+                };
+            }),
+            rolling_returns: Array.from({ length: 54 }, (_, i) => {
+                const date = new Date(2019, 5, 1);
+                date.setMonth(date.getMonth() + i);
+                return {
+                    date: date.toISOString().split('T')[0],
+                    rolling_return: Math.sin(i / 5) / 10
+                };
+            }),
+            monthly_returns: Array.from({ length: 6 * 12 }, (_, i) => {
+                const year = 2019 + Math.floor(i / 12);
+                const month = (i % 12) + 1;
+                const value = Math.sin(i / 3) / 12;
+                return { year, month, return: value };
+            }),
+            win_rate_progression: [
+                { period: "Daily", value: 0.57 },
+                { period: "Monthly", value: 0.63 },
+                { period: "Quarterly", value: 0.68 },
+                { period: "Yearly", value: 0.72 }
+            ],
+            worst_drawdowns: Array.from({ length: 10 }, (_, i) => ({
+                rank: i + 1,
+                start: `202${Math.floor(i/3)}-0${(i%12)+1}-01`,
+                end: `202${Math.floor(i/3)}-0${(i%12)+2}-15`,
+                drawdown_pct: -0.08 + i * 0.005,
+                duration_days: 45 + i * 12
+            })),
+            rolling_volatility: Array.from({ length: 60 }, (_, i) => {
+                const date = new Date(2019, 0, 1);
+                date.setMonth(date.getMonth() + i);
+                return { date: date.toISOString().split('T')[0], value: 0.1 + Math.sin(i / 6) / 50 };
+            }),
+            rolling_sharpe: Array.from({ length: 60 }, (_, i) => {
+                const date = new Date(2019, 0, 1);
+                date.setMonth(date.getMonth() + i);
+                return { date: date.toISOString().split('T')[0], value: 1.2 + Math.cos(i / 6) / 5 };
+            }),
+            returns_distribution: Array.from({ length: 200 }, () => (Math.random() - 0.5) / 20),
+            options: {
+                show_additional_analytics: true,
+                show_drawdown_analysis: true
+            }
+        };
+
+        function formatPercentage(value) {
+            if (value === null || value === undefined || isNaN(value)) return '\u2013';
+            return (value * 100).toFixed(2) + '%';
+        }
+
+        function formatRatio(value) {
+            if (value === null || value === undefined || isNaN(value)) return '\u2013';
+            return Number(value).toFixed(2);
+        }
+
+        function formatValue(value, options = {}) {
+            if (value === null || value === undefined || (typeof value === 'number' && isNaN(value))) return '\u2013';
+            if (options.type === 'percentage') return formatPercentage(value);
+            if (options.type === 'ratio') return formatRatio(value);
+            if (options.type === 'integer') return Math.round(value).toLocaleString();
+            return typeof value === 'number' ? value.toFixed(options.decimals ?? 2) : value;
+        }
+
+        function renderExecutiveSummary(summary) {
+            const container = document.getElementById('executive-summary');
+            container.innerHTML = '';
+            const summaryMap = [
+                { label: 'Total Return', value: summary.total_return, type: 'percentage' },
+                { label: 'CAGR', value: summary.cagr, type: 'percentage' },
+                { label: 'Sharpe Ratio', value: summary.sharpe_ratio, type: 'ratio' },
+                { label: 'Max Drawdown', value: summary.max_drawdown, type: 'percentage' },
+                { label: 'Time in Market', value: summary.time_in_market, type: 'percentage' },
+                { label: 'Monthly Win Rate', value: summary.monthly_win_rate, type: 'percentage' }
+            ];
+            summaryMap.forEach(item => {
+                const metricDiv = document.createElement('div');
+                metricDiv.className = 'metric';
+                const label = document.createElement('span');
+                label.className = 'metric-label';
+                label.textContent = item.label;
+                const value = document.createElement('span');
+                value.className = 'metric-value';
+                value.dataset.copyValue = formatValue(item.value, { type: item.type });
+                const formatted = formatValue(item.value, { type: item.type });
+                value.textContent = formatted;
+                if (item.value < 0) {
+                    value.classList.add('negative');
+                }
+                metricDiv.appendChild(label);
+                metricDiv.appendChild(value);
+                container.appendChild(metricDiv);
+            });
+        }
+
+        function renderTable(containerId, rows, columns) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            if (!rows || rows.length === 0) {
+                container.innerHTML = '<p>No data available.</p>';
+                return;
+            }
+            const table = document.createElement('table');
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            columns.forEach(col => {
+                const th = document.createElement('th');
+                th.textContent = col.header;
+                th.style.textAlign = col.align || 'left';
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+            const tbody = document.createElement('tbody');
+            rows.forEach(row => {
+                const tr = document.createElement('tr');
+                columns.forEach(col => {
+                    const td = document.createElement('td');
+                    const value = row[col.field];
+                    const formatted = col.format ? col.format(value, row) : value;
+                    td.innerHTML = formatted;
+                    td.style.textAlign = col.align || 'left';
+                    if (typeof value === 'number' && value < 0) {
+                        td.classList.add('negative');
+                    }
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            container.innerHTML = '';
+            container.appendChild(table);
+        }
+
+        function renderPeriodReturns(periodReturns) {
+            const order = ['MTD', '3M', '6M', 'YTD', '1Y', '3Y', '5Y', '10Y', 'All-time'];
+            const rows = order
+                .filter(period => periodReturns && periodReturns[period] !== undefined)
+                .map(period => ({ period, value: periodReturns[period] }));
+            renderTable('period-returns-table', rows, [
+                { header: 'Period', field: 'period', align: 'left' },
+                { header: 'Return', field: 'value', format: v => formatPercentage(v) }
+            ]);
+        }
+
+        function renderEOYReturns(eoyReturns) {
+            renderTable('eoy-returns-table', eoyReturns, [
+                { header: 'Year', field: 'year', align: 'left' },
+                { header: 'Annual Return %', field: 'annual_return', format: v => formatPercentage(v) },
+                { header: 'Cumulative Return %', field: 'cumulative_return', format: v => formatPercentage(v) }
+            ]);
+        }
+
+        function renderBestWorst(metrics) {
+            const rows = [
+                { label: 'Best Day', value: metrics.best_periods?.day?.value, period: metrics.best_periods?.day?.period },
+                { label: 'Worst Day', value: metrics.worst_periods?.day?.value, period: metrics.worst_periods?.day?.period },
+                { label: 'Best Month', value: metrics.best_periods?.month?.value, period: metrics.best_periods?.month?.period },
+                { label: 'Worst Month', value: metrics.worst_periods?.month?.value, period: metrics.worst_periods?.month?.period },
+                { label: 'Best Year', value: metrics.best_periods?.year?.value, period: metrics.best_periods?.year?.period },
+                { label: 'Worst Year', value: metrics.worst_periods?.year?.value, period: metrics.worst_periods?.year?.period }
+            ];
+            renderTable('best-worst-table', rows, [
+                { header: 'Period', field: 'label', align: 'left' },
+                { header: 'Value', field: 'value', format: v => formatPercentage(v) },
+                { header: 'Date', field: 'period', align: 'left' }
+            ]);
+        }
+
+        function renderMetricsCard(containerId, metrics) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            const table = document.createElement('table');
+            const tbody = document.createElement('tbody');
+            metrics.forEach(metric => {
+                const tr = document.createElement('tr');
+                const label = document.createElement('td');
+                label.style.textAlign = 'left';
+                label.textContent = metric.label;
+                const valueCell = document.createElement('td');
+                const formatted = formatValue(metric.value, metric.options);
+                valueCell.textContent = formatted;
+                valueCell.className = 'metric-value-cell';
+                if (typeof metric.value === 'number' && metric.value < 0) {
+                    valueCell.classList.add('negative');
+                }
+                tr.appendChild(label);
+                tr.appendChild(valueCell);
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            container.innerHTML = '';
+            container.appendChild(table);
+        }
+
+        function renderConsistencyTable(metrics) {
+            const rows = [
+                { metric: 'Time in Market %', value: formatPercentage(metrics.time_in_market) },
+                { metric: 'Days Underwater', value: `${formatValue(metrics.days_underwater_count, { type: 'integer' })} (${formatPercentage(metrics.days_underwater_pct)})` },
+                { metric: 'Average Up Month', value: formatPercentage(metrics.avg_up_month) },
+                { metric: 'Average Down Month', value: formatPercentage(metrics.avg_down_month) },
+                { metric: 'Win Days', value: formatValue(metrics.win_loss_days?.win, { type: 'integer' }) },
+                { metric: 'Loss Days', value: formatValue(metrics.win_loss_days?.loss, { type: 'integer' }) }
+            ];
+            renderTable('consistency-table', rows, [
+                { header: 'Metric', field: 'metric', align: 'left' },
+                { header: 'Value', field: 'value', align: 'right' }
+            ]);
+        }
+
+        function renderCharts(data) {
+            const dates = data.returns_series.map(d => d.date);
+            const cumulative = data.returns_series.map(d => d.cumulative_return);
+            const cumulativeTrace = {
+                x: dates,
+                y: cumulative,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Cumulative Return',
+                line: { color: '#1f77b4', width: 2 },
+                hovertemplate: '%{x}<br>%{y:.4f}<extra></extra>'
+            };
+            let cumulativeLayout = {
+                margin: { t: 32, r: 16, b: 48, l: 48 },
+                yaxis: { title: 'Growth of $1', tickformat: '.2f' },
+                xaxis: { title: 'Date' },
+                template: 'plotly_white'
+            };
+            const config = { responsive: true, displayModeBar: false };
+            Plotly.newPlot('cumulative-returns-chart', [cumulativeTrace], cumulativeLayout, config);
+
+            document.getElementById('toggle-log-scale').addEventListener('click', () => {
+                const isLog = cumulativeLayout.yaxis.type === 'log';
+                cumulativeLayout = {
+                    ...cumulativeLayout,
+                    yaxis: {
+                        ...cumulativeLayout.yaxis,
+                        type: isLog ? 'linear' : 'log'
+                    }
+                };
+                Plotly.relayout('cumulative-returns-chart', cumulativeLayout);
+            });
+
+            const drawdownTrace = {
+                x: data.drawdown_series.map(d => d.date),
+                y: data.drawdown_series.map(d => d.drawdown_pct * 100),
+                type: 'scatter',
+                mode: 'lines',
+                fill: 'tozeroy',
+                fillcolor: 'rgba(214, 39, 40, 0.2)',
+                line: { color: '#d62728' },
+                hovertemplate: '%{x}<br>%{y:.2f}%<extra></extra>'
+            };
+            Plotly.newPlot('drawdown-chart', [drawdownTrace], {
+                margin: { t: 32, r: 16, b: 48, l: 48 },
+                yaxis: { title: 'Drawdown %' },
+                xaxis: { title: 'Date' },
+                template: 'plotly_white'
+            }, config);
+
+            const rollingTrace = {
+                x: data.rolling_returns.map(d => d.date),
+                y: data.rolling_returns.map(d => d.rolling_return * 100),
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: '#1f77b4' },
+                hovertemplate: '%{x}<br>%{y:.2f}%<extra></extra>'
+            };
+            Plotly.newPlot('rolling-returns-chart', [rollingTrace], {
+                margin: { t: 32, r: 16, b: 48, l: 48 },
+                yaxis: { title: 'Rolling 6M Return %' },
+                xaxis: { title: 'Date' },
+                template: 'plotly_white'
+            }, config);
+
+            const years = [...new Set(data.monthly_returns.map(d => d.year))];
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const z = years.map(year => {
+                return months.map((_, idx) => {
+                    const point = data.monthly_returns.find(d => d.year === year && d.month === idx + 1);
+                    return point ? point.return * 100 : 0;
+                });
+            });
+            Plotly.newPlot('monthly-heatmap', [{
+                z,
+                x: months,
+                y: years.map(String),
+                type: 'heatmap',
+                colorscale: [
+                    [0, '#d62728'],
+                    [0.5, '#f7f7f7'],
+                    [1, '#1f77b4']
+                ],
+                hovertemplate: 'Year %{y}<br>%{x}: %{z:.2f}%<extra></extra>'
+            }], {
+                margin: { t: 32, r: 16, b: 48, l: 64 },
+                xaxis: { title: 'Month' },
+                yaxis: { title: 'Year' },
+                template: 'plotly_white'
+            }, config);
+
+            Plotly.newPlot('win-rate-chart', [{
+                x: data.win_rate_progression.map(d => d.period),
+                y: data.win_rate_progression.map(d => d.value * 100),
+                type: 'bar',
+                marker: { color: '#1f77b4' },
+                hovertemplate: '%{x}: %{y:.2f}%<extra></extra>'
+            }], {
+                margin: { t: 32, r: 16, b: 48, l: 48 },
+                yaxis: { title: 'Win %', range: [0, 100] },
+                template: 'plotly_white'
+            }, config);
+
+            if (data.options?.show_drawdown_analysis) {
+                Plotly.newPlot('drawdown-periods-chart', [{
+                    x: data.worst_drawdowns.map(d => d.rank),
+                    y: data.worst_drawdowns.map(d => d.drawdown_pct * 100),
+                    type: 'bar',
+                    marker: { color: '#d62728' },
+                    hovertemplate: 'Rank %{x}<br>Drawdown %{y:.2f}%<extra></extra>'
+                }], {
+                    margin: { t: 32, r: 16, b: 48, l: 64 },
+                    xaxis: { title: 'Drawdown Rank' },
+                    yaxis: { title: 'Drawdown %' },
+                    template: 'plotly_white'
+                }, config);
+            }
+
+            if (data.options?.show_additional_analytics) {
+                Plotly.newPlot('rolling-vol-chart', [{
+                    x: data.rolling_volatility.map(d => d.date),
+                    y: data.rolling_volatility.map(d => d.value * 100),
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: { color: '#1f77b4' },
+                    hovertemplate: '%{x}<br>%{y:.2f}%<extra></extra>'
+                }], {
+                    margin: { t: 32, r: 16, b: 48, l: 64 },
+                    yaxis: { title: 'Rolling Volatility %' },
+                    template: 'plotly_white'
+                }, config);
+
+                Plotly.newPlot('rolling-sharpe-chart', [{
+                    x: data.rolling_sharpe.map(d => d.date),
+                    y: data.rolling_sharpe.map(d => d.value),
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: { color: '#1f77b4' },
+                    hovertemplate: '%{x}<br>%{y:.2f}<extra></extra>'
+                }], {
+                    margin: { t: 32, r: 16, b: 48, l: 64 },
+                    yaxis: { title: 'Rolling Sharpe Ratio' },
+                    template: 'plotly_white'
+                }, config);
+
+                Plotly.newPlot('returns-dist-chart', [{
+                    x: data.returns_distribution,
+                    type: 'histogram',
+                    marker: { color: '#1f77b4' },
+                    hovertemplate: '%{x:.2f}<extra></extra>'
+                }], {
+                    margin: { t: 32, r: 16, b: 48, l: 64 },
+                    xaxis: { title: 'Daily Return' },
+                    yaxis: { title: 'Frequency' },
+                    template: 'plotly_white'
+                }, config);
+            }
+        }
+
+        function renderWorstDrawdownsTable(drawdowns) {
+            renderTable('worst-drawdowns-table', drawdowns, [
+                { header: 'Rank', field: 'rank', align: 'left' },
+                { header: 'Start Date', field: 'start', align: 'left' },
+                { header: 'End Date', field: 'end', align: 'left' },
+                { header: 'Drawdown %', field: 'drawdown_pct', format: v => formatPercentage(v) },
+                { header: 'Duration (days)', field: 'duration_days', align: 'right' }
+            ]);
+        }
+
+        function setupTabs() {
+            const buttons = document.querySelectorAll('.tab-button');
+            const panels = document.querySelectorAll('.tab-panel');
+            buttons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const target = btn.dataset.tab;
+                    buttons.forEach(b => b.classList.toggle('active', b === btn));
+                    panels.forEach(panel => panel.classList.toggle('active', panel.id === target));
+                    if (target === 'rolling-vol') {
+                        Plotly.Plots.resize('rolling-vol-chart');
+                    } else if (target === 'rolling-sharpe') {
+                        Plotly.Plots.resize('rolling-sharpe-chart');
+                    } else if (target === 'returns-dist') {
+                        Plotly.Plots.resize('returns-dist-chart');
+                    }
+                });
+            });
+        }
+
+        function setupCopyToClipboard() {
+            const notification = document.getElementById('copy-notification');
+            document.addEventListener('click', (event) => {
+                const target = event.target;
+                if (target.classList.contains('metric-value')) {
+                    const value = target.dataset.copyValue || target.textContent.trim();
+                    navigator.clipboard.writeText(value).then(() => {
+                        notification.classList.add('show');
+                        setTimeout(() => notification.classList.remove('show'), 1500);
+                    });
+                }
+            });
+        }
+
+        function render() {
+            document.getElementById('portfolio-name').textContent = reportData.portfolio_name;
+            document.querySelector('#report-date span').textContent = new Date(reportData.report_date).toLocaleDateString();
+            document.getElementById('executive-text').textContent = reportData.executive_text;
+            renderExecutiveSummary(reportData.executive_summary);
+            renderPeriodReturns(reportData.period_returns);
+            renderEOYReturns(reportData.eoy_returns);
+            renderBestWorst(reportData.metrics);
+            renderMetricsCard('risk-adjusted-card', [
+                { label: 'Sharpe Ratio', value: reportData.executive_summary.sharpe_ratio, options: { type: 'ratio' } },
+                { label: 'Probabilistic Sharpe', value: reportData.metrics.probabilistic_sharpe, options: { type: 'ratio' } },
+                { label: 'Sortino Ratio', value: reportData.metrics.sortino_ratio, options: { type: 'ratio' } },
+                { label: 'Smart Sortino', value: reportData.metrics.smart_sortino, options: { type: 'ratio' } },
+                { label: 'Calmar Ratio', value: reportData.metrics.calmar_ratio, options: { type: 'ratio' } },
+                { label: 'Omega Ratio', value: reportData.metrics.omega_ratio, options: { type: 'ratio' } },
+                { label: 'RoMaD', value: reportData.metrics.romad, options: { type: 'ratio' } }
+            ]);
+            renderMetricsCard('volatility-card', [
+                { label: 'Annualized Volatility', value: reportData.metrics.annualized_volatility, options: { type: 'percentage' } },
+                { label: 'Max Drawdown', value: reportData.metrics.max_drawdown?.value, options: { type: 'percentage' } },
+                { label: 'Drawdown Duration', value: reportData.metrics.max_drawdown?.duration, options: { type: 'integer' } },
+                { label: 'Average Drawdown', value: reportData.metrics.average_drawdown, options: { type: 'percentage' } },
+                { label: 'Recovery Factor', value: reportData.metrics.recovery_factor, options: { type: 'ratio' } },
+                { label: 'Ulcer Index', value: reportData.metrics.ulcer_index, options: { decimals: 2 } }
+            ]);
+            renderMetricsCard('distribution-card', [
+                { label: 'Skewness', value: reportData.metrics.skewness, options: { decimals: 2 } },
+                { label: 'Kurtosis', value: reportData.metrics.kurtosis, options: { decimals: 2 } },
+                { label: 'Daily VaR', value: reportData.metrics.daily_var, options: { type: 'percentage' } },
+                { label: 'Expected Shortfall (cVaR)', value: reportData.metrics.expected_shortfall, options: { type: 'percentage' } },
+                { label: 'Serenity Index', value: reportData.metrics.serenity_index, options: { type: 'ratio' } }
+            ]);
+            renderConsistencyTable(reportData.metrics);
+            renderWorstDrawdownsTable(reportData.worst_drawdowns);
+            renderCharts(reportData);
+            setupTabs();
+            setupCopyToClipboard();
+            if (!reportData.options?.show_drawdown_analysis) {
+                document.getElementById('drawdown-analysis').style.display = 'none';
+            }
+            if (!reportData.options?.show_additional_analytics) {
+                document.getElementById('additional-analytics').style.display = 'none';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', render);
+        window.addEventListener('resize', () => {
+            Plotly.Plots.resize('cumulative-returns-chart');
+            Plotly.Plots.resize('drawdown-chart');
+            Plotly.Plots.resize('rolling-returns-chart');
+            Plotly.Plots.resize('monthly-heatmap');
+            Plotly.Plots.resize('win-rate-chart');
+            if (reportData.options?.show_drawdown_analysis) {
+                Plotly.Plots.resize('drawdown-periods-chart');
+            }
+            if (reportData.options?.show_additional_analytics) {
+                Plotly.Plots.resize('rolling-vol-chart');
+                Plotly.Plots.resize('rolling-sharpe-chart');
+                Plotly.Plots.resize('returns-dist-chart');
+            }
+        });
+    </script>
+</body>
+</html>
