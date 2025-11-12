@@ -551,4 +551,9 @@ __all__ = [
     "omega_ratio",
     "value_at_risk",
     "conditional_value_at_risk",
+    "average_drawdown",
+    "average_drawdown_days",
+    "recovery_factor",
+    "ulcer_index",
+    "serenity_index",
 ]

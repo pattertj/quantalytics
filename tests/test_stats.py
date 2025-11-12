@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from quantalytics.stats import (
+from quantalytics.analytics import (
     best_period_return,
     cagr,
     cagr_percent,
