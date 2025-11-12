@@ -8,6 +8,8 @@ from quantalytics.analytics import (
     best_period_return,
     cagr,
     cagr_percent,
+    cpc_index,
+    common_sense_ratio,
     gain_to_pain_ratio,
     information_ratio,
     kelly_criterion,
@@ -16,9 +18,12 @@ from quantalytics.analytics import (
     max_consecutive_wins,
     omega_ratio,
     payoff_ratio,
+    profit_factor,
     profit_ratio,
     skew,
     skewness,
+    tail_ratio,
+    win_loss_ratio,
     total_return,
     volatility,
     win_rate,
@@ -140,6 +145,27 @@ def test_payoff_and_profit_ratio_values():
     series = pd.Series([0.02, -0.01, 0.01])
     assert payoff_ratio(series) == pytest.approx(1.5)
     assert profit_ratio(series) == pytest.approx(2.0)
+
+
+def test_win_loss_ratio_alias():
+    series = pd.Series([0.02, -0.01])
+    assert win_loss_ratio(series) == pytest.approx(2.0)
+
+
+def test_profit_factor_and_derived_ratios():
+    series = pd.Series([0.02, -0.01])
+    pf = profit_factor(series)
+    assert pf == pytest.approx(2.0)
+    assert cpc_index(series) == pytest.approx(
+        pf * win_rate(series) * win_loss_ratio(series)
+    )
+    assert common_sense_ratio(series) == pytest.approx(pf * tail_ratio(series))
+
+
+def test_tail_ratio_value():
+    series = pd.Series([0.01] * 19 + [-0.005])
+    expected = abs(series.quantile(0.95) / series.quantile(0.05))
+    assert tail_ratio(series) == pytest.approx(expected)
 
 
 def test_profit_ratio_handles_zero_losses():

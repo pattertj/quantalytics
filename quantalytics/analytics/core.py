@@ -126,8 +126,8 @@ def _period_returns(
         "daily": "D",
         "week": "W",
         "weekly": "W",
-        "month": "M",
-        "monthly": "M",
+        "month": "ME",
+        "monthly": "ME",
         "quarter": "Q",
         "quarterly": "Q",
         "year": "A",
@@ -207,12 +207,17 @@ def payoff_ratio(returns: Iterable[float] | pd.Series) -> float:
     wins = series[series > 0]
     losses = series[series < 0]
     if losses.empty:
-        return float("inf") if not wins.empty else float("nan")
-    avg_win_value = float(wins.mean()) if not wins.empty else 0.0
+        return float("nan") if wins.empty else float("inf")
+    avg_win_value = 0.0 if wins.empty else float(wins.mean())
     avg_loss_value = float(abs(losses).mean())
     if avg_loss_value == 0:
         return float("inf") if avg_win_value > 0 else float("nan")
     return avg_win_value / avg_loss_value
+
+
+def win_loss_ratio(returns: Iterable[float] | pd.Series) -> float:
+    """Shorthand for payoff_ratio function."""
+    return payoff_ratio(returns)
 
 
 def profit_ratio(returns: Iterable[float] | pd.Series) -> float:
@@ -315,6 +320,37 @@ def information_ratio(
     return (diff.mean() / tracking_error) * math.sqrt(ann_factor)
 
 
+def profit_factor(returns: Iterable[float] | pd.Series):
+    """Measures the profit ratio (wins/loss)"""
+    returns_series = _to_series(returns)
+    return abs(
+        returns_series[returns_series >= 0].sum()
+        / returns_series[returns_series < 0].sum()
+    )
+
+
+def cpc_index(returns: Iterable[float] | pd.Series):
+    """
+    Measures the cpc ratio
+    (profit factor * win % * win loss ratio)
+    """
+    return profit_factor(returns) * win_rate(returns) * win_loss_ratio(returns)
+
+
+def tail_ratio(returns: Iterable[float] | pd.Series, cutoff=0.95):
+    """
+    Measures the ratio between the right
+    (95%) and left tail (5%).
+    """
+    returns_series = _to_series(returns)
+    return abs(returns_series.quantile(cutoff) / returns_series.quantile(1 - cutoff))
+
+
+def common_sense_ratio(returns: Iterable[float] | pd.Series):
+    """Measures the common sense ratio (profit factor * tail ratio)"""
+    return profit_factor(returns) * tail_ratio(returns)
+
+
 def omega_ratio(
     returns: Iterable[float] | pd.Series,
     threshold: float = 0.0,
@@ -351,6 +387,11 @@ __all__ = [
     "gain_to_pain_ratio",
     "kelly_criterion",
     "information_ratio",
+    "win_loss_ratio",
+    "profit_factor",
+    "cpc_index",
+    "tail_ratio",
+    "common_sense_ratio",
     "omega_ratio",
     "payoff_ratio",
     "profit_ratio",
