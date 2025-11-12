@@ -92,7 +92,7 @@ def downside_deviation(
     return math.sqrt(variance) * math.sqrt(ann_factor)
 
 
-def sortino_ratio(
+def sortino(
     returns: Iterable[float] | pd.Series,
     risk_free_rate: float = 0.0,
     target_return: float = 0.0,
@@ -194,7 +194,7 @@ def performance_summary(
     sharpe_ratio = sharpe(
         series, risk_free_rate=risk_free_rate, periods_per_year=ann_factor
     )
-    sortino = sortino_ratio(
+    sortino_ratio = sortino(
         series,
         risk_free_rate=risk_free_rate,
         target_return=target_return,
@@ -208,7 +208,7 @@ def performance_summary(
         annualized_return=ann_ret,
         annualized_volatility=ann_vol,
         sharpe=sharpe_ratio,
-        sortino=sortino,
+        sortino=sortino_ratio,
         calmar=calmar,
         max_drawdown=mdd,
         downside_deviation=dd,
@@ -334,6 +334,31 @@ def ulcer_index(returns: Iterable[float] | pd.Series) -> float:
     return float(math.sqrt(np.mean(squared)))
 
 
+def ulcer_performance_index(
+    returns: Iterable[float] | pd.Series,
+    periods_per_year: Optional[int | str] = None,
+) -> float:
+    """Ulcer Performance Index (UPI) defined as CAGR / Ulcer index."""
+
+    series = _to_series(returns)
+    if series.empty:
+        return float("nan")
+    ulcer = ulcer_index(series)
+    if math.isnan(ulcer) or ulcer == 0:
+        return float("nan")
+    ann_return = annualized_return(series, periods_per_year=periods_per_year)
+    return float(ann_return / ulcer)
+
+
+def upi(
+    returns: Iterable[float] | pd.Series,
+    periods_per_year: Optional[int | str] = None,
+) -> float:
+    """Alias for ulcer_performance_index."""
+
+    return ulcer_performance_index(returns, periods_per_year=periods_per_year)
+
+
 def serenity_index(
     returns: Iterable[float] | pd.Series,
     periods_per_year: Optional[int | str] = None,
@@ -425,7 +450,7 @@ def smart_sortino_ratio(
 ) -> float:
     """Sortino ratio adjusted for higher moments."""
 
-    base = sortino_ratio(
+    base = sortino(
         returns,
         risk_free_rate=risk_free_rate,
         target_return=target_return,
@@ -449,7 +474,7 @@ def sortino_over_sqrt_two(
 ) -> float:
     """Sortino ratio scaled by sqrt(2)."""
 
-    value = sortino_ratio(
+    value = sortino(
         returns,
         risk_free_rate=risk_free_rate,
         target_return=target_return,
@@ -491,6 +516,34 @@ def omega_ratio(
     return float("inf") if loss_sum == 0 else float(gains.sum() / loss_sum)
 
 
+def treynor_ratio(
+    returns: Iterable[float] | pd.Series,
+    benchmark: Iterable[float] | pd.Series,
+    *,
+    risk_free_rate: float = 0.0,
+    periods_per_year: Optional[int | str] = None,
+) -> float:
+    """Return over beta using the Treynor ratio."""
+
+    series = _to_series(returns)
+    bench = _to_series(benchmark)
+    if series.empty or bench.empty:
+        return float("nan")
+    joined = series.align(bench, join="inner")
+    strata, bench_aligned = joined
+    strata = strata.dropna()
+    bench_aligned = bench_aligned.dropna()
+    if strata.empty or bench_aligned.empty:
+        return float("nan")
+    ann_factor = _annualization_factor(periods_per_year)
+    rf_per_period = risk_free_rate / ann_factor
+    excess = strata - rf_per_period
+    beta = strata.cov(bench_aligned)
+    if beta == 0 or math.isnan(beta):
+        return float("nan")
+    return float(excess.mean() / beta)
+
+
 def value_at_risk(
     returns: Iterable[float] | pd.Series,
     confidence: float = 0.95,
@@ -506,6 +559,15 @@ def value_at_risk(
 
     quantile = float(series.quantile(1 - confidence))
     return quantile
+
+
+def var(
+    returns: Iterable[float] | pd.Series,
+    confidence: float = 0.95,
+) -> float:
+    """Historical value-at-risk (positive loss) at the given confidence level."""
+
+    return value_at_risk(returns, confidence=confidence)
 
 
 def conditional_value_at_risk(
@@ -532,7 +594,7 @@ __all__ = [
     "PerformanceMetrics",
     "performance_summary",
     "sharpe",
-    "sortino_ratio",
+    "sortino",
     "calmar_ratio",
     "max_drawdown",
     "max_drawdown_percent",
@@ -549,6 +611,8 @@ __all__ = [
     "sortino_over_sqrt_two",
     "smart_sortino_over_sqrt_two",
     "omega_ratio",
+    "ulcer_performance_index",
+    "treynor_ratio",
     "value_at_risk",
     "conditional_value_at_risk",
     "average_drawdown",

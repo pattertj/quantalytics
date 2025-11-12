@@ -3,7 +3,6 @@ import math
 import numpy as np
 import pandas as pd
 import pytest
-
 from quantalytics.analytics import (
     average_drawdown,
     average_drawdown_days,
@@ -20,9 +19,11 @@ from quantalytics.analytics import (
     sharpe,
     smart_sharpe_ratio,
     smart_sortino_over_sqrt_two,
+    sortino,
     sortino_over_sqrt_two,
-    sortino_ratio,
+    treynor_ratio,
     ulcer_index,
+    ulcer_performance_index,
     underwater_percent,
     value_at_risk,
 )
@@ -44,7 +45,7 @@ def test_performance_summary_runs():
 def test_sharpe_and_sortino_positive():
     returns = sample_returns()
     assert sharpe(returns) > 0
-    assert sortino_ratio(returns) > 0
+    assert sortino(returns) > 0
 
 
 def test_max_drawdown_nonzero():
@@ -82,7 +83,7 @@ def test_smart_vs_classic_sharpe():
 
 def test_sortino_variants_scale_by_sqrt_two():
     returns = sample_returns()
-    base = sortino_ratio(returns)
+    base = sortino(returns)
     scaled = sortino_over_sqrt_two(returns)
     assert scaled == pytest.approx(base / np.sqrt(2))
 
@@ -145,3 +146,22 @@ def test_serenity_index_positive_for_consistent_returns():
     returns = pd.Series([0.001] * 252)
     value = serenity_index(returns, periods_per_year=252)
     assert math.isinf(value)
+
+
+def test_treynor_ratio_behavior():
+    returns = pd.Series([0.02, -0.01, 0.01])
+    benchmark = pd.Series([0.01, 0.005, 0.0])
+    value = treynor_ratio(returns, benchmark, risk_free_rate=0.0)
+    assert value > 0
+
+    flat_benchmark = pd.Series([0.01, 0.01, 0.01])
+    assert math.isnan(treynor_ratio(returns, flat_benchmark))
+
+
+def test_ulcer_performance_index():
+    returns = pd.Series([0.01, -0.005, 0.02])
+    value = ulcer_performance_index(returns, periods_per_year=252)
+    assert value > 0
+
+    assert math.isnan(ulcer_performance_index(pd.Series([], dtype=float)))
+    assert math.isnan(ulcer_performance_index(pd.Series([], dtype=float)))

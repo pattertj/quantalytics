@@ -1,15 +1,15 @@
 import math
+
 import pandas as pd
 import pytest
-
 from quantalytics.analytics import (
     avg_loss,
     avg_win,
     best_period_return,
     cagr,
     cagr_percent,
-    cpc_index,
     common_sense_ratio,
+    cpc_index,
     gain_to_pain_ratio,
     information_ratio,
     kelly_criterion,
@@ -23,11 +23,10 @@ from quantalytics.analytics import (
     r_squared,
     risk_of_ruin,
     skew,
-    skewness,
     tail_ratio,
-    win_loss_ratio,
     total_return,
     volatility,
+    win_loss_ratio,
     win_rate,
     worst_period_return,
 )
@@ -35,7 +34,6 @@ from quantalytics.analytics import (
 
 def test_skewness_of_symmetric_series_is_zero():
     returns = pd.Series([-0.01, 0.0, 0.01])
-    assert skewness(returns) == pytest.approx(0.0, abs=1e-12)
     assert skew(returns) == pytest.approx(0.0, abs=1e-12)
 
 
@@ -202,7 +200,7 @@ def test_profit_ratio_handles_zero_losses():
 
 
 def test_skewness_empty_returns_nan():
-    assert math.isnan(skewness(pd.Series([], dtype=float)))
+    assert math.isnan(skew(pd.Series([], dtype=float)))
 
 
 def test_kurtosis_pearson_adjustment():
@@ -248,4 +246,5 @@ def test_information_ratio_with_zero_tracking_error():
 
 def test_omega_ratio_handles_zero_losses():
     series = pd.Series([0.01, 0.02])
+    assert math.isinf(omega_ratio(series))
     assert math.isinf(omega_ratio(series))

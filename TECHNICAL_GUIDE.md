@@ -9,8 +9,7 @@ The repository is a single Python package (`quantalytics`) that exposes *namespa
 ```python
 import quantalytics as qa
 
-qa.metrics.sharpe_ratio(...)
-qa.stats.skewness(...)
+qa.analytics.sharpe_ratio(...)
 qa.charts.cumulative_returns_chart(...)
 qa.reports.render_basic_tearsheet(...)
 ```
@@ -75,7 +74,7 @@ Following these steps keeps the package predictable for both humans and agents a
 ### Development Workflow
 
 1. **Environment** – Create a virtualenv (`python -m venv .venv`), activate it, and run `pip install -e .[dev]`.
-2. **Tooling** – Use `uv` to execute commands (`uv run pytest ...`). Run `pre-commit install` once; hooks enforce formatting (Ruff), security (Bandit, Safety), and tests locally.
+2. **Tooling** – Use `uv` to execute commands (`uv run pytest ...`). Run `pre-commit install` once; hooks enforce formatting (Ruff), security (Bandit, Safety), and tests locally. The CLI exposes `qa.analytics`, `qa.metrics`, `qa.charts`, and `qa.reporting`, so expect tooling to span those namespaces during development and releases.
 3. **Docs** – Start Docusaurus in dev mode via `cd docs && npm install && npm run start` when editing guides.
 
 ### Continuous Integration

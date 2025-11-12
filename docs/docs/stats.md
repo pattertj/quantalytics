@@ -9,7 +9,7 @@ Use the stats helpers to calculate descriptive distribution properties before la
 ```python
 import quantalytics as qa
 
-skew = qa.stats.skewness(returns)  # or qa.stats.skew(returns)
+skew = qa.stats.skew(returns)  # or qa.stats.skew(returns)
 kurt = qa.stats.kurtosis(returns)
 total = qa.stats.total_return(returns)
 cagr = qa.stats.cagr(returns, periods_per_year=252)

@@ -34,19 +34,13 @@ def _annualization_factor(freq: str | int | None, fallback: int = 252) -> int:
     return fallback
 
 
-def skewness(returns: Iterable[float] | pd.Series) -> float:
+def skew(returns: Iterable[float] | pd.Series) -> float:
     """Sample skewness of the return distribution."""
 
     series = _to_series(returns)
     if series.empty:
         return float("nan")
     return series.skew()
-
-
-def skew(returns: Iterable[float] | pd.Series) -> float:
-    """Alias for ``skewness`` to match abbreviated naming."""
-
-    return skewness(returns)
 
 
 def kurtosis(
@@ -409,7 +403,6 @@ def omega_ratio(
 
 
 __all__ = [
-    "skewness",
     "skew",
     "kurtosis",
     "total_return",
