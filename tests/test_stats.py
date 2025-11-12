@@ -104,7 +104,7 @@ def test_win_rate_daily_and_weekly():
 
 def test_avg_loss_and_win_magnitudes():
     series = pd.Series([-0.01, 0.02, -0.03, 0.04])
-    assert avg_loss(series) == pytest.approx(0.02)
+    assert avg_loss(series) == pytest.approx(-0.02)
     assert avg_win(series) == pytest.approx(0.03)
 
 
@@ -182,27 +182,18 @@ def test_r_squared_partial_fit():
     assert value < 1
 
 
-def test_risk_of_ruin_calculation():
-    series = pd.Series(
-        [0.01, 0.02, -0.01],
-        index=pd.date_range("2024-01-01", periods=3, freq="B"),
-    )
-    avg_loss_value = avg_loss(series)
-    expected = (0.3333333333333333 / 0.6666666666666666) ** ((1 * 0.1) / avg_loss_value)
-    assert risk_of_ruin(series, bankroll=1.0, risk_per_trade=0.1) == pytest.approx(
-        expected
-    )
+def test_risk_of_ruin_simple_formula():
+    series = pd.Series([0.01, -0.005, 0.005])
+    wins = win_rate(series) / 100.0
+    expected = ((1 - wins) / (1 + wins)) ** len(series)
+    assert risk_of_ruin(series) == pytest.approx(expected)
 
 
-def test_risk_of_ruin_guaranteed_loss():
-    series = pd.Series([-0.01, -0.02])
+def test_risk_of_ruin_extreme():
+    series = pd.Series([0.01] * 5)
+    assert risk_of_ruin(series) == pytest.approx(0.0)
+    series = pd.Series([-0.01] * 5)
     assert risk_of_ruin(series) == pytest.approx(1.0)
-
-
-def test_risk_of_ruin_invalid_params():
-    series = pd.Series([0.01])
-    assert math.isnan(risk_of_ruin(series, bankroll=0.0))
-    assert math.isnan(risk_of_ruin(series, risk_per_trade=0.0))
 
 
 def test_profit_ratio_handles_zero_losses():

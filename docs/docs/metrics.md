@@ -52,8 +52,8 @@ All metrics support customizing the `periods_per_year` argument to align with da
 ## Tail Risk Metrics
 
 ```python
-var = qa.metrics.value_at_risk(returns, confidence=0.95)
-cvar = qa.metrics.conditional_value_at_risk(returns, confidence=0.95)
+var = qa.analytics.value_at_risk(returns, confidence=0.95)
+cvar = qa.analytics.conditional_value_at_risk(returns, confidence=0.95)
 ```
 
 - `value_at_risk` returns the historical loss magnitude you should not exceed with the specified confidence.
@@ -62,10 +62,10 @@ cvar = qa.metrics.conditional_value_at_risk(returns, confidence=0.95)
 ## Advanced Risk Metrics
 
 ```python
-prob = qa.metrics.prob_sharpe_ratio(returns, risk_free_rate=0.0, target_sharpe=0.5)
-smart_sharpe = qa.metrics.smart_sharpe_ratio(returns)
-smart_sortino = qa.metrics.smart_sortino_ratio(returns)
-smart_sortino_half = qa.metrics.smart_sortino_over_sqrt_two(returns)
+prob = qa.analytics.prob_sharpe_ratio(returns, risk_free_rate=0.0, target_sharpe=0.5)
+smart_sharpe = qa.analytics.smart_sharpe_ratio(returns)
+smart_sortino = qa.analytics.smart_sortino_ratio(returns)
+smart_sortino_half = qa.analytics.smart_sortino_over_sqrt_two(returns)
 ```
 
 - `prob_sharpe_ratio` returns the probability that your sample Sharpe exceeds a target.

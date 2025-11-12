@@ -187,7 +187,7 @@ def avg_loss(returns: Iterable[float] | pd.Series) -> float:
     losses = series[series < 0]
     if losses.empty:
         return 0.0
-    return float(abs(losses).mean())
+    return float(losses.mean())
 
 
 def avg_win(returns: Iterable[float] | pd.Series) -> float:
@@ -345,38 +345,18 @@ def r_squared(
     return float(1 - residual_sum_squares / total_sum_squares)
 
 
-def risk_of_ruin(
-    returns: Iterable[float] | pd.Series,
-    *,
-    bankroll: float = 1.0,
-    risk_per_trade: float = 0.02,
-) -> float:
+def risk_of_ruin(returns: Iterable[float] | pd.Series) -> float:
     """
-    Estimate risk of ruin using a gambler's-ruin approximation.
-
-    Each trade risks `risk_per_trade * bankroll`; odds are derived from
-    the historical win rate and average loss size.
+    Estimate risk-of-ruin via a simplified formula based on win percentage.
     """
 
     series = _to_series(returns)
     if series.empty:
         return float("nan")
-    if bankroll <= 0 or risk_per_trade <= 0:
-        return float("nan")
-
-    p = win_rate(series) / 100.0
-    q = 1.0 - p
-    avg_loss_value = avg_loss(series)
-    if avg_loss_value == 0:
-        return 0.0
-
-    wager = bankroll * risk_per_trade
-    units = wager / avg_loss_value
-    if units <= 0:
-        return float("nan")
-    if p <= q:
-        return 1.0
-    return min(1.0, (q / p) ** units)
+    wins = win_rate(series) / 100.0
+    if wins <= -1 or wins >= 1:
+        return 0.0 if wins >= 1 else 1.0
+    return ((1 - wins) / (1 + wins)) ** len(series)
 
 
 def profit_factor(returns: Iterable[float] | pd.Series):

@@ -505,7 +505,7 @@ def value_at_risk(
         return float("nan")
 
     quantile = float(series.quantile(1 - confidence))
-    return max(0.0, -quantile)
+    return quantile
 
 
 def conditional_value_at_risk(
@@ -525,7 +525,7 @@ def conditional_value_at_risk(
     tail = series[series <= var_threshold]
     if tail.empty:
         return 0.0
-    return float(-tail.mean())
+    return float(tail.mean())
 
 
 __all__ = [

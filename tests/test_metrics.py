@@ -118,8 +118,8 @@ def test_var_and_cvar_return_positive_losses():
     var = value_at_risk(returns, confidence=confidence)
     cvar = conditional_value_at_risk(returns, confidence=confidence)
     expected_var_threshold = returns.quantile(1 - confidence)
-    expected_var = max(0.0, -expected_var_threshold)
-    expected_cvar = max(0.0, -returns[returns <= expected_var_threshold].mean())
+    expected_var = expected_var_threshold
+    expected_cvar = returns[returns <= expected_var_threshold].mean()
     assert var == pytest.approx(expected_var)
     assert cvar == pytest.approx(expected_cvar)
 

@@ -2,9 +2,10 @@
 
 Quantalytics is a fast, modern Python library for generating quantitative performance metrics, interactive charts, and publication-ready reports. It is designed for strategy researchers, portfolio managers, and data scientists who want an ergonomic toolchain without the overhead of large monolithic frameworks.
 
-## Features
+-## Features
 
 - **Descriptive Stats** – Grab skew, kurtosis, total return, and CAGR via the lightweight `qa.stats` helpers.
+- **Analytics Helpers** – Access payoff ratio, profit ratio, Kelly, omega, tail, and other advanced risk/efficiency diagnostics through `qa.analytics`.
 - **Performance Metrics** – Compute Sharpe, Sortino, Calmar, max drawdown, annualized returns/volatility, and more in a single call.
 - **Interactive Visuals** – Build Plotly-based charts for cumulative returns, rolling volatility, and drawdown analysis with sensible defaults.
 - **Beautiful Reports** – Produce responsive HTML tear sheets with configurable sections, ready to export to PDF.
