@@ -178,6 +178,26 @@ def win_rate(
     return float(wins / len(grouped) * 100.0)
 
 
+def avg_loss(returns: Iterable[float] | pd.Series) -> float:
+    """Average loss magnitude across periods."""
+
+    series = _to_series(returns)
+    losses = series[series < 0]
+    if losses.empty:
+        return 0.0
+    return float(abs(losses).mean())
+
+
+def avg_win(returns: Iterable[float] | pd.Series) -> float:
+    """Average win magnitude across periods."""
+
+    series = _to_series(returns)
+    wins = series[series > 0]
+    if wins.empty:
+        return 0.0
+    return float(wins.mean())
+
+
 __all__ = [
     "skewness",
     "skew",
@@ -189,4 +209,6 @@ __all__ = [
     "best_period_return",
     "worst_period_return",
     "win_rate",
+    "avg_loss",
+    "avg_win",
 ]

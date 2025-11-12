@@ -2,6 +2,8 @@ import pandas as pd
 import pytest
 
 from quantalytics.analytics import (
+    avg_loss,
+    avg_win,
     best_period_return,
     cagr,
     cagr_percent,
@@ -82,3 +84,9 @@ def test_win_rate_daily_and_weekly():
     weekly_dates = pd.date_range("2024-01-01", periods=10, freq="B")
     weekly_returns = pd.Series([0.01] * 5 + [-0.01] * 5, index=weekly_dates)
     assert win_rate(weekly_returns, period="week") == pytest.approx(50.0)
+
+
+def test_avg_loss_and_win_magnitudes():
+    series = pd.Series([-0.01, 0.02, -0.03, 0.04])
+    assert avg_loss(series) == pytest.approx(0.02)
+    assert avg_win(series) == pytest.approx(0.03)
