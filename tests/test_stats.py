@@ -15,6 +15,8 @@ from quantalytics.analytics import (
     max_consecutive_losses,
     max_consecutive_wins,
     omega_ratio,
+    payoff_ratio,
+    profit_ratio,
     skew,
     skewness,
     total_return,
@@ -127,6 +129,22 @@ def test_omega_ratio():
     series = pd.Series([0.01, -0.005, 0.02, -0.03, 0.015])
     expected = (0.01 + 0.02 + 0.015) / (0.005 + 0.03)
     assert omega_ratio(series) == pytest.approx(expected)
+
+
+def test_payoff_ratio_inf_and_zero():
+    assert math.isinf(payoff_ratio(pd.Series([0.01, 0.02])))
+    assert payoff_ratio(pd.Series([-0.01, -0.02])) == pytest.approx(0.0)
+
+
+def test_payoff_and_profit_ratio_values():
+    series = pd.Series([0.02, -0.01, 0.01])
+    assert payoff_ratio(series) == pytest.approx(1.5)
+    assert profit_ratio(series) == pytest.approx(2.0)
+
+
+def test_profit_ratio_handles_zero_losses():
+    assert math.isinf(profit_ratio(pd.Series([0.01, 0.02])))
+    assert profit_ratio(pd.Series([-0.01, -0.02])) == pytest.approx(0.0)
 
 
 def test_skewness_empty_returns_nan():

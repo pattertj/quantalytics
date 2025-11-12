@@ -198,6 +198,37 @@ def avg_win(returns: Iterable[float] | pd.Series) -> float:
     return float(wins.mean())
 
 
+def payoff_ratio(returns: Iterable[float] | pd.Series) -> float:
+    """Measures the payoff ratio (average win / average loss)."""
+
+    series = _to_series(returns)
+    if series.empty:
+        return float("nan")
+    wins = series[series > 0]
+    losses = series[series < 0]
+    if losses.empty:
+        return float("inf") if not wins.empty else float("nan")
+    avg_win_value = float(wins.mean()) if not wins.empty else 0.0
+    avg_loss_value = float(abs(losses).mean())
+    if avg_loss_value == 0:
+        return float("inf") if avg_win_value > 0 else float("nan")
+    return avg_win_value / avg_loss_value
+
+
+def profit_ratio(returns: Iterable[float] | pd.Series) -> float:
+    """Measures the profit ratio (win ratio / loss ratio)."""
+
+    series = _to_series(returns)
+    if series.empty:
+        return float("nan")
+    total = len(series)
+    win_ratio = series.gt(0).sum() / total
+    loss_ratio = series.lt(0).sum() / total
+    if loss_ratio == 0:
+        return float("inf") if win_ratio > 0 else float("nan")
+    return float(win_ratio / loss_ratio)
+
+
 def max_consecutive_losses(returns: Iterable[float] | pd.Series) -> int:
     """Maximum number of back-to-back losing periods."""
 
@@ -321,4 +352,6 @@ __all__ = [
     "kelly_criterion",
     "information_ratio",
     "omega_ratio",
+    "payoff_ratio",
+    "profit_ratio",
 ]
