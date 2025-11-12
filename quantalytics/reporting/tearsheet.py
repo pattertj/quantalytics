@@ -24,8 +24,9 @@ from ..metrics.performance import (
     performance_summary,
 )
 
+_TEMPLATE_DIR = Path(__file__).parent / "templates"
 _TEMPLATE_ENV = Environment(
-    loader=FileSystemLoader(Path(__file__).parent / "templates"),
+    loader=FileSystemLoader(_TEMPLATE_DIR),
     autoescape=select_autoescape(["html", "xml"]),
 )
 
@@ -512,7 +513,7 @@ def html(
         "sortino": f"{stats.sortino:.2f}",
     }
 
-    template_path = Path(__file__).parent / "tearsheet.html"
+    template_path = _TEMPLATE_DIR / "tearsheet.html"
     html = template_path.read_text()
     html = html.replace("__QA_REPORT_TITLE__", title)
     subtitle_text = (
