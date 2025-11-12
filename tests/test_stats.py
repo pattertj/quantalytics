@@ -7,6 +7,7 @@ from quantalytics.analytics import (
     best_period_return,
     cagr,
     cagr_percent,
+    gain_to_pain_ratio,
     kurtosis,
     max_consecutive_losses,
     max_consecutive_wins,
@@ -98,3 +99,8 @@ def test_max_consecutive_win_loss_runs():
     series = pd.Series([-0.01, -0.02, 0.01, 0.02, 0.03, -0.05, -0.01, 0.02])
     assert max_consecutive_losses(series) == 2
     assert max_consecutive_wins(series) == 3
+
+
+def test_gain_to_pain_ratio():
+    series = pd.Series([0.01, -0.005, 0.02, -0.01])
+    assert gain_to_pain_ratio(series) == pytest.approx(1.0)

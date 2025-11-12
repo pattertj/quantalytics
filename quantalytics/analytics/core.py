@@ -226,6 +226,19 @@ def max_consecutive_wins(returns: Iterable[float] | pd.Series) -> int:
     return max_run
 
 
+def gain_to_pain_ratio(returns: Iterable[float] | pd.Series) -> float:
+    """Net return relative to the magnitude of losses."""
+
+    series = _to_series(returns)
+    if series.empty:
+        return float("nan")
+    total_gain = float(series.sum())
+    loss_sum = float(abs(series[series < 0].sum()))
+    if loss_sum == 0:
+        return float("inf") if total_gain > 0 else float("nan")
+    return total_gain / loss_sum
+
+
 __all__ = [
     "skewness",
     "skew",
@@ -241,4 +254,5 @@ __all__ = [
     "avg_win",
     "max_consecutive_losses",
     "max_consecutive_wins",
+    "gain_to_pain_ratio",
 ]
