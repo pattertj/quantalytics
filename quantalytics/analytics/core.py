@@ -139,7 +139,7 @@ def _period_returns(
 
 def best_period_return(
     returns: Iterable[float] | pd.Series,
-    period: str = "day",
+    period: str | None = None,
 ) -> float:
     """Best compounded return for the supplied period, expressed as a percentage."""
 
@@ -151,7 +151,7 @@ def best_period_return(
 
 def worst_period_return(
     returns: Iterable[float] | pd.Series,
-    period: str = "day",
+    period: str | None = None,
 ) -> float:
     """Worst compounded return for the supplied period, expressed as a percentage."""
 
@@ -163,7 +163,7 @@ def worst_period_return(
 
 def win_rate(
     returns: Iterable[float] | pd.Series,
-    period: str = "day",
+    period: str | None = None,
 ) -> float:
     """Win rate (percentage of positive periods) for the given frequency."""
 
