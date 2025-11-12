@@ -239,6 +239,27 @@ def gain_to_pain_ratio(returns: Iterable[float] | pd.Series) -> float:
     return total_gain / loss_sum
 
 
+def kelly_criterion(
+    returns: Iterable[float] | pd.Series,
+    risk_free_rate: float = 0.0,
+    periods_per_year: Optional[int | str] = None,
+) -> float:
+    """Fraction of capital to allocate per the Kelly criterion."""
+
+    series = _to_series(returns)
+    if series.empty:
+        return float("nan")
+    ann_factor = _annualization_factor(periods_per_year)
+    excess = series - risk_free_rate / ann_factor
+    if excess.empty:
+        return float("nan")
+    avg = excess.mean()
+    variance = excess.var(ddof=1)
+    if variance == 0 or math.isnan(variance):
+        return float("inf") if avg > 0 else float("nan")
+    return float(avg / variance)
+
+
 def information_ratio(
     returns: Iterable[float] | pd.Series,
     benchmark: Iterable[float] | pd.Series,
@@ -279,5 +300,6 @@ __all__ = [
     "max_consecutive_losses",
     "max_consecutive_wins",
     "gain_to_pain_ratio",
+    "kelly_criterion",
     "information_ratio",
 ]

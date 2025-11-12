@@ -9,6 +9,7 @@ from quantalytics.analytics import (
     cagr_percent,
     gain_to_pain_ratio,
     information_ratio,
+    kelly_criterion,
     kurtosis,
     max_consecutive_losses,
     max_consecutive_wins,
@@ -112,3 +113,9 @@ def test_information_ratio():
     benchmark = pd.Series([0.005, 0.015, -0.005])
     info = information_ratio(returns, benchmark, periods_per_year=252)
     assert info == pytest.approx(18.332, rel=1e-3)
+
+
+def test_kelly_criterion():
+    series = pd.Series([0.01, -0.005, 0.02, 0.015])
+    expected = series.mean() / series.var(ddof=1)
+    assert kelly_criterion(series) == pytest.approx(expected)
