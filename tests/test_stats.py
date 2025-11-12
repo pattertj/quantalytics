@@ -51,8 +51,14 @@ def test_total_return_compounds_returns():
 
 def test_volatility_matches_std():
     returns = pd.Series([0.01, 0.02, -0.01])
-    expected = returns.std(ddof=1)
+    expected = returns.std(ddof=1) * math.sqrt(365)
     assert volatility(returns) == pytest.approx(expected)
+
+
+def test_volatility_no_annualize():
+    returns = pd.Series([0.01, 0.02, -0.01])
+    expected = returns.std(ddof=1)
+    assert volatility(returns, annualize=False) == pytest.approx(expected)
 
 
 def test_cagr_matches_manual_computation():
@@ -94,10 +100,10 @@ def test_period_validation_raises_value_error():
 def test_win_rate_daily_and_weekly():
     dates = pd.date_range("2024-01-01", periods=6, freq="D")
     returns = pd.Series([0.01, -0.02, 0.03, -0.01, 0.02, 0.0], index=dates)
-    assert win_rate(returns, period="day") == pytest.approx(50.0)
+    assert win_rate(returns, period="day") == pytest.approx(0.5)
     weekly_dates = pd.date_range("2024-01-01", periods=10, freq="B")
     weekly_returns = pd.Series([0.01] * 5 + [-0.01] * 5, index=weekly_dates)
-    assert win_rate(weekly_returns, period="week") == pytest.approx(50.0)
+    assert win_rate(weekly_returns, period="week") == pytest.approx(0.5)
 
 
 def test_avg_loss_and_win_magnitudes():
@@ -182,14 +188,16 @@ def test_r_squared_partial_fit():
 
 def test_risk_of_ruin_simple_formula():
     series = pd.Series([0.01, -0.005, 0.005])
-    wins = win_rate(series) / 100.0
+    wins = win_rate(series)
     expected = ((1 - wins) / (1 + wins)) ** len(series)
     assert risk_of_ruin(series) == pytest.approx(expected)
 
 
 def test_risk_of_ruin_extreme():
     series = pd.Series([0.01] * 5)
-    assert risk_of_ruin(series) == pytest.approx(0.0)
+    wins = win_rate(series)
+    expected = ((1 - wins) / (1 + wins)) ** len(series)
+    assert risk_of_ruin(series) == pytest.approx(expected)
     series = pd.Series([-0.01] * 5)
     assert risk_of_ruin(series) == pytest.approx(1.0)
 
@@ -223,9 +231,9 @@ def test_cagr_string_periods_and_nan_returns():
 def test_win_rate_weekly_and_monthly_combination():
     dates = pd.date_range("2024-01-01", periods=20, freq="B")
     returns = pd.Series([0.01] * 10 + [-0.01] * 10, index=dates)
-    assert win_rate(returns, period="weekly") == pytest.approx(50.0)
+    assert win_rate(returns, period="weekly") == pytest.approx(0.5)
     monthly_rate = win_rate(returns, period="monthly")
-    assert 0 <= monthly_rate <= 100
+    assert 0 <= monthly_rate <= 1
 
 
 def test_gain_to_pain_handles_no_losses():

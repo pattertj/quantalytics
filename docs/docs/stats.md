@@ -23,8 +23,8 @@ win_rate = qa.stats.win_rate(returns, period="week")
 - `skewness` and `kurtosis` operate directly on raw returns (or any numeric iterable) and drop missing values.
 - `total_return` compounds the whole series to a single growth figure.
 - `cagr`/`cagr_percent` annualize growth by the sampling frequency you specify (defaults to daily bars).
-- `volatility` returns the realized (non-annualized) standard deviation so you can annualize or compare across sampling windows manually.
+- `volatility` now returns annualized volatility by default (sqrt of the default 365 periods). Set `annualize=False` or adjust `periods` to work with arbitrary sampling frequencies.
 - `best_period_return` / `worst_period_return` surface the highest/lowest compounded return for any period (`day|week|month|quarter|year`) and report the answer in percent terms for easy reporting.
-- `win_rate` tells you how often the strategy finished positive for the selected period, also in percent form.
+`- win_rate` tells you how often the strategy finished positive for the selected period; it now returns a decimal (0–1) rather than a percentage.
 
 Combine these stats with `qa.metrics.performance_summary` to get a complete picture of the distribution and risk-adjusted results.

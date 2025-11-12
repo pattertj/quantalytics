@@ -67,13 +67,21 @@ def total_return(returns: Iterable[float] | pd.Series) -> float:
     return float(np.prod(1 + series) - 1)
 
 
-def volatility(returns: Iterable[float] | pd.Series, ddof: int = 1) -> float:
-    """Realized (non-annualized) volatility expressed as standard deviation."""
+def volatility(
+    returns: Iterable[float] | pd.Series,
+    *,
+    periods: int = 365,
+    annualize: bool = True,
+) -> float:
+    """Realized volatility as standard deviation, optionally annualized."""
 
     series = _to_series(returns)
     if series.empty:
         return float("nan")
-    return float(series.std(ddof=ddof))
+    std = float(series.std(ddof=1))
+    if annualize:
+        return std * math.sqrt(periods)
+    return std
 
 
 def cagr(
@@ -171,7 +179,7 @@ def win_rate(
     if grouped.empty:
         return float("nan")
     wins = (grouped > 0).sum()
-    return float(wins / len(grouped) * 100.0)
+    return float(wins / len(grouped))
 
 
 def avg_loss(returns: Iterable[float] | pd.Series) -> float:
@@ -347,7 +355,7 @@ def risk_of_ruin(returns: Iterable[float] | pd.Series) -> float:
     series = _to_series(returns)
     if series.empty:
         return float("nan")
-    wins = win_rate(series) / 100.0
+    wins = win_rate(series)
     if wins <= -1 or wins >= 1:
         return 0.0 if wins >= 1 else 1.0
     return ((1 - wins) / (1 + wins)) ** len(series)
