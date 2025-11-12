@@ -1,3 +1,4 @@
+import math
 import pandas as pd
 import pytest
 
@@ -13,6 +14,7 @@ from quantalytics.analytics import (
     kurtosis,
     max_consecutive_losses,
     max_consecutive_wins,
+    omega_ratio,
     skew,
     skewness,
     total_return,
@@ -119,3 +121,59 @@ def test_kelly_criterion():
     series = pd.Series([0.01, -0.005, 0.02, 0.015])
     expected = series.mean() / series.var(ddof=1)
     assert kelly_criterion(series) == pytest.approx(expected)
+
+
+def test_omega_ratio():
+    series = pd.Series([0.01, -0.005, 0.02, -0.03, 0.015])
+    expected = (0.01 + 0.02 + 0.015) / (0.005 + 0.03)
+    assert omega_ratio(series) == pytest.approx(expected)
+
+
+def test_skewness_empty_returns_nan():
+    assert math.isnan(skewness(pd.Series([], dtype=float)))
+
+
+def test_kurtosis_pearson_adjustment():
+    series = pd.Series([0.0, 0.0, 0.0, 0.0])
+    assert kurtosis(series, fisher=False) == pytest.approx(3.0)
+
+
+def test_total_return_and_volatility_edgecases():
+    empty = pd.Series([], dtype=float)
+    assert math.isnan(total_return(empty))
+    assert math.isnan(volatility(empty))
+
+
+def test_cagr_string_periods_and_nan_returns():
+    series = pd.Series([0.01] * 252)
+    assert cagr(series, periods_per_year="D") > 0
+    assert math.isnan(cagr(pd.Series([-1.0])))
+
+
+def test_win_rate_weekly_and_monthly_combination():
+    dates = pd.date_range("2024-01-01", periods=20, freq="B")
+    returns = pd.Series([0.01] * 10 + [-0.01] * 10, index=dates)
+    assert win_rate(returns, period="weekly") == pytest.approx(50.0)
+    monthly_rate = win_rate(returns, period="monthly")
+    assert 0 <= monthly_rate <= 100
+
+
+def test_gain_to_pain_handles_no_losses():
+    series = pd.Series([0.01, 0.02])
+    assert gain_to_pain_ratio(series) == pytest.approx(float("inf"))
+
+
+def test_kelly_returns_infinite_when_variance_zero():
+    series = pd.Series([0.01, 0.01, 0.01])
+    assert math.isinf(kelly_criterion(series))
+
+
+def test_information_ratio_with_zero_tracking_error():
+    series = pd.Series([0.01, 0.02])
+    info = information_ratio(series, series, periods_per_year=252)
+    assert math.isnan(info)
+
+
+def test_omega_ratio_handles_zero_losses():
+    series = pd.Series([0.01, 0.02])
+    assert math.isinf(omega_ratio(series))

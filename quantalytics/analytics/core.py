@@ -284,6 +284,24 @@ def information_ratio(
     return (diff.mean() / tracking_error) * math.sqrt(ann_factor)
 
 
+def omega_ratio(
+    returns: Iterable[float] | pd.Series,
+    threshold: float = 0.0,
+) -> float:
+    """Omega ratio comparing threshold-exceeding gains to threshold-breaching losses."""
+
+    series = _to_series(returns)
+    if series.empty:
+        return float("nan")
+    gains = series[series > threshold] - threshold
+    losses = threshold - series[series < threshold]
+    gain_sum = float(gains.sum())
+    loss_sum = float(losses.sum())
+    if loss_sum == 0:
+        return float("inf") if gain_sum > 0 else float("nan")
+    return gain_sum / loss_sum
+
+
 __all__ = [
     "skewness",
     "skew",
@@ -302,4 +320,5 @@ __all__ = [
     "gain_to_pain_ratio",
     "kelly_criterion",
     "information_ratio",
+    "omega_ratio",
 ]
