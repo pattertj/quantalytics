@@ -37,7 +37,7 @@ fig.show()
 
 ## Documentation
 
-Full tutorials and API references live on our Docusaurus site: [https://quantalytics.dev/docs](https://quantalytics.dev/docs). Start with the introduction, then dive into the stats, metrics, charts, or reports guides as needed.
+Full tutorials and API references live on our Docusaurus site: [https://pattertj.github.io/quantalytics/](https://pattertj.github.io/quantalytics/). Start with the introduction, then dive into the stats, metrics, charts, or reports guides as needed.
 
 ## License
 
