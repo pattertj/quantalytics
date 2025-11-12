@@ -239,6 +239,30 @@ def gain_to_pain_ratio(returns: Iterable[float] | pd.Series) -> float:
     return total_gain / loss_sum
 
 
+def information_ratio(
+    returns: Iterable[float] | pd.Series,
+    benchmark: Iterable[float] | pd.Series,
+    periods_per_year: Optional[int | str] = None,
+) -> float:
+    """Annualized information ratio relative to a benchmark."""
+
+    strata = _to_series(returns)
+    bench = _to_series(benchmark)
+    if strata.empty or bench.empty:
+        return float("nan")
+    joined = strata.align(bench, join="inner")
+    aligned_strategy, aligned_benchmark = joined
+    diff = aligned_strategy - aligned_benchmark
+    diff = diff.dropna()
+    if diff.empty:
+        return float("nan")
+    tracking_error = diff.std(ddof=1)
+    if tracking_error == 0 or math.isnan(tracking_error):
+        return float("nan")
+    ann_factor = _annualization_factor(periods_per_year)
+    return (diff.mean() / tracking_error) * math.sqrt(ann_factor)
+
+
 __all__ = [
     "skewness",
     "skew",
@@ -255,4 +279,5 @@ __all__ = [
     "max_consecutive_losses",
     "max_consecutive_wins",
     "gain_to_pain_ratio",
+    "information_ratio",
 ]

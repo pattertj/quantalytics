@@ -8,6 +8,7 @@ from quantalytics.analytics import (
     cagr,
     cagr_percent,
     gain_to_pain_ratio,
+    information_ratio,
     kurtosis,
     max_consecutive_losses,
     max_consecutive_wins,
@@ -104,3 +105,10 @@ def test_max_consecutive_win_loss_runs():
 def test_gain_to_pain_ratio():
     series = pd.Series([0.01, -0.005, 0.02, -0.01])
     assert gain_to_pain_ratio(series) == pytest.approx(1.0)
+
+
+def test_information_ratio():
+    returns = pd.Series([0.01, 0.02, -0.005])
+    benchmark = pd.Series([0.005, 0.015, -0.005])
+    info = information_ratio(returns, benchmark, periods_per_year=252)
+    assert info == pytest.approx(18.332, rel=1e-3)
