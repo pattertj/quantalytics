@@ -198,6 +198,34 @@ def avg_win(returns: Iterable[float] | pd.Series) -> float:
     return float(wins.mean())
 
 
+def max_consecutive_losses(returns: Iterable[float] | pd.Series) -> int:
+    """Maximum number of back-to-back losing periods."""
+
+    series = _to_series(returns)
+    max_run = current = 0
+    for value in series:
+        if value < 0:
+            current += 1
+            max_run = max(max_run, current)
+        else:
+            current = 0
+    return max_run
+
+
+def max_consecutive_wins(returns: Iterable[float] | pd.Series) -> int:
+    """Maximum number of back-to-back winning periods."""
+
+    series = _to_series(returns)
+    max_run = current = 0
+    for value in series:
+        if value > 0:
+            current += 1
+            max_run = max(max_run, current)
+        else:
+            current = 0
+    return max_run
+
+
 __all__ = [
     "skewness",
     "skew",
@@ -211,4 +239,6 @@ __all__ = [
     "win_rate",
     "avg_loss",
     "avg_win",
+    "max_consecutive_losses",
+    "max_consecutive_wins",
 ]

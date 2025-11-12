@@ -8,6 +8,8 @@ from quantalytics.analytics import (
     cagr,
     cagr_percent,
     kurtosis,
+    max_consecutive_losses,
+    max_consecutive_wins,
     skew,
     skewness,
     total_return,
@@ -90,3 +92,9 @@ def test_avg_loss_and_win_magnitudes():
     series = pd.Series([-0.01, 0.02, -0.03, 0.04])
     assert avg_loss(series) == pytest.approx(0.02)
     assert avg_win(series) == pytest.approx(0.03)
+
+
+def test_max_consecutive_win_loss_runs():
+    series = pd.Series([-0.01, -0.02, 0.01, 0.02, 0.03, -0.05, -0.01, 0.02])
+    assert max_consecutive_losses(series) == 2
+    assert max_consecutive_wins(series) == 3
