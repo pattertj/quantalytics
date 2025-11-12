@@ -147,7 +147,7 @@ def max_drawdown(returns: Iterable[float] | pd.Series) -> float:
     return drawdowns.min()
 
 
-def calmar_ratio(
+def calmar(
     returns: Iterable[float] | pd.Series,
     periods_per_year: Optional[int | str] = None,
 ) -> float:
@@ -200,7 +200,7 @@ def performance_summary(
         target_return=target_return,
         periods_per_year=ann_factor,
     )
-    calmar = calmar_ratio(series, periods_per_year=ann_factor)
+    calmar_ratio = calmar(series, periods_per_year=ann_factor)
     mdd = max_drawdown(series)
     dd = downside_deviation(series, target=target_return, periods_per_year=ann_factor)
 
@@ -209,7 +209,7 @@ def performance_summary(
         annualized_volatility=ann_vol,
         sharpe=sharpe_ratio,
         sortino=sortino_ratio,
-        calmar=calmar,
+        calmar=calmar_ratio,
         max_drawdown=mdd,
         downside_deviation=dd,
         cumulative_return=cum_return,
@@ -404,7 +404,7 @@ def _probability_inputs(
     return excess, sharpe_like, excess.skew(), excess.kurtosis()
 
 
-def prob_sharpe_ratio(
+def prob_sharpe(
     returns: Iterable[float] | pd.Series,
     risk_free_rate: float = 0.0,
     target_sharpe: float = 0.0,
@@ -423,7 +423,7 @@ def prob_sharpe_ratio(
     return 0.5 * (1 + math.erf(z_score / SQRT_TWO))
 
 
-def smart_sharpe_ratio(
+def smart_sharpe(
     returns: Iterable[float] | pd.Series,
     risk_free_rate: float = 0.0,
     periods_per_year: Optional[int | str] = None,
@@ -442,7 +442,7 @@ def smart_sharpe_ratio(
     return base * adjustment
 
 
-def smart_sortino_ratio(
+def smart_sortino(
     returns: Iterable[float] | pd.Series,
     risk_free_rate: float = 0.0,
     target_return: float = 0.0,
@@ -491,7 +491,7 @@ def smart_sortino_over_sqrt_two(
 ) -> float:
     """Smart Sortino ratio scaled by sqrt(2)."""
 
-    value = smart_sortino_ratio(
+    value = smart_sortino(
         returns,
         risk_free_rate=risk_free_rate,
         target_return=target_return,
@@ -500,7 +500,7 @@ def smart_sortino_over_sqrt_two(
     return value if math.isnan(value) else value / SQRT_TWO
 
 
-def omega_ratio(
+def omega(
     returns: Iterable[float] | pd.Series,
     target_return: float = 0.0,
 ) -> float:
@@ -595,7 +595,7 @@ __all__ = [
     "performance_summary",
     "sharpe",
     "sortino",
-    "calmar_ratio",
+    "calmar",
     "max_drawdown",
     "max_drawdown_percent",
     "longest_drawdown_days",
@@ -605,12 +605,12 @@ __all__ = [
     "annualized_return",
     "annualized_volatility",
     "romad",
-    "prob_sharpe_ratio",
-    "smart_sharpe_ratio",
-    "smart_sortino_ratio",
+    "prob_sharpe",
+    "smart_sharpe",
+    "smart_sortino",
     "sortino_over_sqrt_two",
     "smart_sortino_over_sqrt_two",
-    "omega_ratio",
+    "omega",
     "ulcer_performance_index",
     "treynor_ratio",
     "value_at_risk",

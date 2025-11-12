@@ -32,11 +32,11 @@ Fields available on `PerformanceMetrics`:
 import quantalytics as qa
 
 sharpe = qa.metrics.sharpe(returns, risk_free_rate=0.015)
-sortino = qa.metrics.sortino_ratio(returns, risk_free_rate=0.015, target_return=0.0)
-calmar = qa.metrics.calmar_ratio(returns)
+sortino = qa.metrics.sortino(returns, risk_free_rate=0.015, target_return=0.0)
+calmar = qa.metrics.calmar(returns)
 drawdown = qa.metrics.max_drawdown(returns)
 romad = qa.metrics.romad(returns)
-omega = qa.metrics.omega_ratio(returns)
+omega = qa.metrics.omega(returns)
 max_dd_pct = qa.metrics.max_drawdown_percent(returns)
 longest_dd_days = qa.metrics.longest_drawdown_days(returns)
 underwater = qa.metrics.underwater_percent(returns)
@@ -62,9 +62,9 @@ cvar = qa.analytics.conditional_value_at_risk(returns, confidence=0.95)
 ## Advanced Risk Metrics
 
 ```python
-prob = qa.analytics.prob_sharpe_ratio(returns, risk_free_rate=0.0, target_sharpe=0.5)
-smart_sharpe = qa.analytics.smart_sharpe_ratio(returns)
-smart_sortino = qa.analytics.smart_sortino_ratio(returns)
+prob = qa.analytics.prob_sharpe(returns, risk_free_rate=0.0, target_sharpe=0.5)
+smart_sharpe = qa.analytics.smart_sharpe(returns)
+smart_sortino = qa.analytics.smart_sortino(returns)
 smart_sortino_half = qa.analytics.smart_sortino_over_sqrt_two(returns)
 ```
 

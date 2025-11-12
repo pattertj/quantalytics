@@ -10,14 +10,14 @@ from quantalytics.analytics import (
     longest_drawdown_days,
     max_drawdown,
     max_drawdown_percent,
-    omega_ratio,
+    omega,
     performance_summary,
-    prob_sharpe_ratio,
+    prob_sharpe,
     recovery_factor,
     romad,
     serenity_index,
     sharpe,
-    smart_sharpe_ratio,
+    smart_sharpe,
     smart_sortino_over_sqrt_two,
     sortino,
     sortino_over_sqrt_two,
@@ -67,16 +67,16 @@ def test_romad_positive():
     assert value > 0
 
 
-def test_prob_sharpe_ratio_in_unit_interval():
+def test_prob_sharpe_in_unit_interval():
     returns = sample_returns()
-    value = prob_sharpe_ratio(returns)
+    value = prob_sharpe(returns)
     assert 0 <= value <= 1
 
 
 def test_smart_vs_classic_sharpe():
     returns = sample_returns()
     classic = sharpe(returns)
-    smart = smart_sharpe_ratio(returns)
+    smart = smart_sharpe(returns)
     assert classic > 0
     assert smart > 0
 
@@ -94,9 +94,9 @@ def test_smart_sortino_over_sqrt_two_positive():
     assert value > 0
 
 
-def test_omega_ratio_positive():
+def test_omega_positive():
     returns = sample_returns()
-    assert omega_ratio(returns) > 0
+    assert omega(returns) > 0
 
 
 def test_longest_drawdown_days_counts_calendar_days():
@@ -163,5 +163,7 @@ def test_ulcer_performance_index():
     value = ulcer_performance_index(returns, periods_per_year=252)
     assert value > 0
 
+    assert math.isnan(ulcer_performance_index(pd.Series([], dtype=float)))
+    assert math.isnan(ulcer_performance_index(pd.Series([], dtype=float)))
     assert math.isnan(ulcer_performance_index(pd.Series([], dtype=float)))
     assert math.isnan(ulcer_performance_index(pd.Series([], dtype=float)))

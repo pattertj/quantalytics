@@ -16,7 +16,7 @@ from quantalytics.analytics import (
     kurtosis,
     max_consecutive_losses,
     max_consecutive_wins,
-    omega_ratio,
+    omega,
     payoff_ratio,
     profit_factor,
     profit_ratio,
@@ -136,10 +136,10 @@ def test_kelly_criterion():
     assert kelly_criterion(series) == pytest.approx(expected)
 
 
-def test_omega_ratio():
+def test_omega():
     series = pd.Series([0.01, -0.005, 0.02, -0.03, 0.015])
     expected = (0.01 + 0.02 + 0.015) / (0.005 + 0.03)
-    assert omega_ratio(series) == pytest.approx(expected)
+    assert omega(series) == pytest.approx(expected)
 
 
 def test_payoff_ratio_inf_and_zero():
@@ -252,7 +252,9 @@ def test_information_ratio_with_zero_tracking_error():
     assert math.isnan(info)
 
 
-def test_omega_ratio_handles_zero_losses():
+def test_omega_handles_zero_losses():
     series = pd.Series([0.01, 0.02])
-    assert math.isinf(omega_ratio(series))
-    assert math.isinf(omega_ratio(series))
+    assert math.isinf(omega(series))
+    assert math.isinf(omega(series))
+    assert math.isinf(omega(series))
+    assert math.isinf(omega(series))

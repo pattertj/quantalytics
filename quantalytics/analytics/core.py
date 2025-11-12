@@ -392,7 +392,7 @@ def common_sense_ratio(returns: Iterable[float] | pd.Series):
     return profit_factor(returns) * tail_ratio(returns)
 
 
-def omega_ratio(
+def omega(
     returns: Iterable[float] | pd.Series,
     threshold: float = 0.0,
 ) -> float:
@@ -434,7 +434,7 @@ __all__ = [
     "cpc_index",
     "tail_ratio",
     "common_sense_ratio",
-    "omega_ratio",
+    "omega",
     "payoff_ratio",
     "profit_ratio",
 ]

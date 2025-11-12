@@ -9,7 +9,7 @@ The repository is a single Python package (`quantalytics`) that exposes *namespa
 ```python
 import quantalytics as qa
 
-qa.analytics.sharpe_ratio(...)
+qa.analytics.sharpe(...)
 qa.charts.cumulative_returns_chart(...)
 qa.reports.render_basic_tearsheet(...)
 ```
