@@ -118,9 +118,11 @@ def cagr_percent(
 
 def _period_returns(
     returns: Iterable[float] | pd.Series,
-    period: str,
+    period: Optional[str] = None,
 ) -> pd.Series:
     series = ensure_datetime_index(_to_series(returns))
+    if period is None:
+        return series
     period_map = {
         "day": "D",
         "daily": "D",
@@ -320,6 +322,63 @@ def information_ratio(
     return (diff.mean() / tracking_error) * math.sqrt(ann_factor)
 
 
+def r_squared(
+    returns: Iterable[float] | pd.Series,
+    benchmark: Iterable[float] | pd.Series,
+) -> float:
+    """Coefficient of determination between strategy returns and a benchmark."""
+
+    strata = _to_series(returns)
+    bench = _to_series(benchmark)
+    if strata.empty or bench.empty:
+        return float("nan")
+    aligned_strategy, aligned_benchmark = strata.align(bench, join="inner")
+    aligned_strategy = aligned_strategy.dropna()
+    aligned_benchmark = aligned_benchmark.dropna()
+    if aligned_strategy.empty or aligned_benchmark.empty:
+        return float("nan")
+    mean = aligned_strategy.mean()
+    total_sum_squares = ((aligned_strategy - mean) ** 2).sum()
+    residual_sum_squares = ((aligned_strategy - aligned_benchmark) ** 2).sum()
+    if total_sum_squares == 0:
+        return 1.0 if residual_sum_squares == 0 else float("nan")
+    return float(1 - residual_sum_squares / total_sum_squares)
+
+
+def risk_of_ruin(
+    returns: Iterable[float] | pd.Series,
+    *,
+    bankroll: float = 1.0,
+    risk_per_trade: float = 0.02,
+) -> float:
+    """
+    Estimate risk of ruin using a gambler's-ruin approximation.
+
+    Each trade risks `risk_per_trade * bankroll`; odds are derived from
+    the historical win rate and average loss size.
+    """
+
+    series = _to_series(returns)
+    if series.empty:
+        return float("nan")
+    if bankroll <= 0 or risk_per_trade <= 0:
+        return float("nan")
+
+    p = win_rate(series) / 100.0
+    q = 1.0 - p
+    avg_loss_value = avg_loss(series)
+    if avg_loss_value == 0:
+        return 0.0
+
+    wager = bankroll * risk_per_trade
+    units = wager / avg_loss_value
+    if units <= 0:
+        return float("nan")
+    if p <= q:
+        return 1.0
+    return min(1.0, (q / p) ** units)
+
+
 def profit_factor(returns: Iterable[float] | pd.Series):
     """Measures the profit ratio (wins/loss)"""
     returns_series = _to_series(returns)
@@ -387,6 +446,8 @@ __all__ = [
     "gain_to_pain_ratio",
     "kelly_criterion",
     "information_ratio",
+    "r_squared",
+    "risk_of_ruin",
     "win_loss_ratio",
     "profit_factor",
     "cpc_index",

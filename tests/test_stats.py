@@ -20,6 +20,8 @@ from quantalytics.analytics import (
     payoff_ratio,
     profit_factor,
     profit_ratio,
+    r_squared,
+    risk_of_ruin,
     skew,
     skewness,
     tail_ratio,
@@ -166,6 +168,41 @@ def test_tail_ratio_value():
     series = pd.Series([0.01] * 19 + [-0.005])
     expected = abs(series.quantile(0.95) / series.quantile(0.05))
     assert tail_ratio(series) == pytest.approx(expected)
+
+
+def test_r_squared_perfect_fit():
+    series = pd.Series([0.01, 0.02, 0.03])
+    assert r_squared(series, series) == pytest.approx(1.0)
+
+
+def test_r_squared_partial_fit():
+    returns = pd.Series([0.01, 0.02, 0.03])
+    benchmark = pd.Series([0.01, 0.02, 0.01])
+    value = r_squared(returns, benchmark)
+    assert value < 1
+
+
+def test_risk_of_ruin_calculation():
+    series = pd.Series(
+        [0.01, 0.02, -0.01],
+        index=pd.date_range("2024-01-01", periods=3, freq="B"),
+    )
+    avg_loss_value = avg_loss(series)
+    expected = (0.3333333333333333 / 0.6666666666666666) ** ((1 * 0.1) / avg_loss_value)
+    assert risk_of_ruin(series, bankroll=1.0, risk_per_trade=0.1) == pytest.approx(
+        expected
+    )
+
+
+def test_risk_of_ruin_guaranteed_loss():
+    series = pd.Series([-0.01, -0.02])
+    assert risk_of_ruin(series) == pytest.approx(1.0)
+
+
+def test_risk_of_ruin_invalid_params():
+    series = pd.Series([0.01])
+    assert math.isnan(risk_of_ruin(series, bankroll=0.0))
+    assert math.isnan(risk_of_ruin(series, risk_per_trade=0.0))
 
 
 def test_profit_ratio_handles_zero_losses():
