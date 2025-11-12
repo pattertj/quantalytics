@@ -19,7 +19,7 @@ from ..charts.timeseries import (
     drawdown_chart,
     rolling_volatility_chart,
 )
-from ..metrics.performance import (
+from ..analytics.performance import (
     cumulative_returns,
     performance_summary,
 )
@@ -143,8 +143,8 @@ def _yearly_table(series: pd.Series) -> list[list[str]]:
         rows.append(
             [
                 str(year),
-                f"{year_return*100:.2f}%",
-                f"{year_end_cum*100:.2f}%",
+                f"{year_return * 100:.2f}%",
+                f"{year_end_cum * 100:.2f}%",
             ]
         )
     return rows
@@ -238,7 +238,7 @@ def _win_rate(series: pd.Series, freq: str) -> float:
 
 
 def _format_percent(value: float, decimals: int = 2) -> str:
-    return f"{value*100:.{decimals}f}%"
+    return f"{value * 100:.{decimals}f}%"
 
 
 def _nan_safe(sequence: Iterable[float]) -> list[Optional[float]]:
@@ -336,8 +336,8 @@ def html(
     for label, start in period_map:
         start_date = max(series.index[0], start)
         value = _period_return(series, start_date)
-        period_returns.append([label, f"{value*100:.2f}%"])
-    period_returns.append(["All-time", f"{((1 + series).prod() - 1)*100:.2f}%"])
+        period_returns.append([label, f"{value * 100:.2f}%"])
+    period_returns.append(["All-time", f"{((1 + series).prod() - 1) * 100:.2f}%"])
 
     year_labels: list[str] = []
     year_values: list[float] = []
@@ -398,7 +398,7 @@ def html(
             [
                 seg["start"].strftime("%Y-%m-%d"),
                 seg["end"].strftime("%Y-%m-%d"),
-                f"{seg['drawdown']*100:.2f}%",
+                f"{seg['drawdown'] * 100:.2f}%",
                 str(seg["duration"]),
             ]
         )
@@ -421,13 +421,13 @@ def html(
     underwater_pct = ((drawdown_path < 0).sum() / len(drawdown_path)) * 100
 
     vol_rows = [
-        ["Annualized Vol", f"{stats.annualized_volatility*100:.2f}%"],
-        ["Max Drawdown", f"{stats.max_drawdown*100:.2f}%"],
+        ["Annualized Vol", f"{stats.annualized_volatility * 100:.2f}%"],
+        ["Max Drawdown", f"{stats.max_drawdown * 100:.2f}%"],
         [
             "Longest DD Days",
             f"{longest_dd['duration']} days" if longest_dd else "0 days",
         ],
-        ["Average Drawdown", f"{average_drawdown*100:.2f}%"],
+        ["Average Drawdown", f"{average_drawdown * 100:.2f}%"],
         ["Average DD Days", f"{average_dd_days:.0f} days"],
         ["Underwater %", f"{underwater_pct:.2f}%"],
         [
@@ -440,10 +440,10 @@ def html(
     tail_rows = [
         ["Skewness", f"{series.skew():.2f}"],
         ["Kurtosis", f"{series.kurtosis():.2f}"],
-        ["Daily VaR", f"{np.percentile(series, 5)*100:.2f}%"],
+        ["Daily VaR", f"{np.percentile(series, 5) * 100:.2f}%"],
         [
             "Expected Shortfall",
-            f"{series[series <= np.percentile(series, 5)].mean()*100:.2f}%",
+            f"{series[series <= np.percentile(series, 5)].mean() * 100:.2f}%",
         ],
         ["Serenity Index", f"{serenity:.2f}" if not math.isnan(serenity) else "N/A"],
     ]
@@ -468,7 +468,7 @@ def html(
     parameter_rows = [[key, value] for key, value in default_parameters.items()]
 
     consistency_rows = [
-        ["Time in Market", f"{(series != 0).mean()*100:.2f}%"],
+        ["Time in Market", f"{(series != 0).mean() * 100:.2f}%"],
         [
             "Avg Up Month",
             f"{((series[series > 0].mean() * 100) if series[series > 0].any() else 0.0):.2f}%",
@@ -479,35 +479,35 @@ def html(
         ],
         ["Winning Days", f"{(series > 0).sum()}"],
         ["Losing Days", f"{(series < 0).sum()}"],
-        ["Expected Daily%", f"{series.mean()*100:.2f}%"],
-        ["Expected Monthly%", f"{((1 + series.mean()) ** 21 - 1)*100:.2f}%"],
-        ["Expected Yearly%", f"{((1 + series.mean()) ** 252 - 1)*100:.2f}%"],
-        ["Best Day", f"{series.max()*100:.2f}%"],
-        ["Worst Day", f"{series.min()*100:.2f}%"],
+        ["Expected Daily%", f"{series.mean() * 100:.2f}%"],
+        ["Expected Monthly%", f"{((1 + series.mean()) ** 21 - 1) * 100:.2f}%"],
+        ["Expected Yearly%", f"{((1 + series.mean()) ** 252 - 1) * 100:.2f}%"],
+        ["Best Day", f"{series.max() * 100:.2f}%"],
+        ["Worst Day", f"{series.min() * 100:.2f}%"],
         [
             "Best Month",
-            f"{(1 + series.resample('ME').apply(lambda x: (1 + x).prod() - 1).max())*100 - 100:.2f}%",
+            f"{(1 + series.resample('ME').apply(lambda x: (1 + x).prod() - 1).max()) * 100 - 100:.2f}%",
         ],
         [
             "Worst Month",
-            f"{(1 + series.resample('ME').apply(lambda x: (1 + x).prod() - 1).min())*100 - 100:.2f}%",
+            f"{(1 + series.resample('ME').apply(lambda x: (1 + x).prod() - 1).min()) * 100 - 100:.2f}%",
         ],
         [
             "Best Year",
-            f"{(1 + series.resample('YE').apply(lambda x: (1 + x).prod() - 1).max())*100 - 100:.2f}%",
+            f"{(1 + series.resample('YE').apply(lambda x: (1 + x).prod() - 1).max()) * 100 - 100:.2f}%",
         ],
         [
             "Worst Year",
-            f"{(1 + series.resample('YE').apply(lambda x: (1 + x).prod() - 1).min())*100 - 100:.2f}%",
+            f"{(1 + series.resample('YE').apply(lambda x: (1 + x).prod() - 1).min()) * 100 - 100:.2f}%",
         ],
     ]
 
     eoy_table_rows = _yearly_table(series)
 
     stats_display = {
-        "annualized_return": f"{stats.annualized_return*100:.2f}%",
+        "annualized_return": f"{stats.annualized_return * 100:.2f}%",
         "sharpe": f"{stats.sharpe:.2f}",
-        "max_drawdown": f"{stats.max_drawdown*100:.2f}%",
+        "max_drawdown": f"{stats.max_drawdown * 100:.2f}%",
         "win_rate": f"{win_rate_values[0]:.0f}%",
         "romad": f"{romad:.2f}x" if not math.isnan(romad) else "N/A",
         "sortino": f"{stats.sortino:.2f}",

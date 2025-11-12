@@ -8,7 +8,7 @@ from typing import Iterable, Optional, Union
 import pandas as pd
 import plotly.graph_objects as go
 
-from ..metrics.performance import cumulative_returns
+from ..analytics.performance import cumulative_returns
 from ..utils.timeseries import ensure_datetime_index, rolling_statistic
 
 

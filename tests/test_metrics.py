@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from quantalytics.metrics import (
+from quantalytics.analytics import (
     average_drawdown,
     average_drawdown_days,
     conditional_value_at_risk,
