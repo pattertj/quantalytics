@@ -148,3 +148,73 @@ def autocorr_penalty(returns: Series | DataFrame, prepare_returns=False) -> floa
     coef = abs(corrcoef(returns[:-1], returns[1:])[0, 1])
     corr = [((num - x) / num) * coef**x for x in range(1, num)]
     return sqrt(1 + 2 * sum(corr))
+
+
+@overload
+def omega_ratio(returns: Series, threshold: float = 0.0) -> float: ...
+@overload
+def omega_ratio(returns: DataFrame, threshold: float = 0.0) -> Series: ...
+def omega_ratio(returns: Series | DataFrame, threshold: float = 0.0) -> float | Series:
+    """Omega ratio: upside deviation divided by downside deviation relative to `threshold`."""
+
+    def _omega(series: Series) -> float:
+        clean = series
+        diff = clean - threshold
+        gains = diff[diff > 0].sum()
+        losses = -diff[diff < 0].sum()
+        if losses == 0:
+            return float("inf") if gains > 0 else float("nan")
+        return float(gains / losses)
+
+    normalized = _utils.normalize_returns(data=returns)
+    if isinstance(normalized, DataFrame):
+        return Series({col: _omega(normalized[col]) for col in normalized.columns})
+    return _omega(normalized)
+
+
+@overload
+def gain_to_pain_ratio(returns: Series, prepare_returns: bool = True) -> float: ...
+@overload
+def gain_to_pain_ratio(returns: DataFrame, prepare_returns: bool = True) -> Series: ...
+def gain_to_pain_ratio(
+    returns: Series | DataFrame, prepare_returns: bool = True
+) -> float | Series:
+    """Gain-to-pain ratio computed as sum positive returns over absolute sum of losses."""
+
+    def _ratio(series: Series) -> float:
+        clean = series
+        positive = clean[clean > 0].sum()
+        negative = -clean[clean < 0].sum()
+        if negative == 0:
+            return float("inf") if positive > 0 else float("nan")
+        return float(positive / negative)
+
+    if prepare_returns:
+        returns = _utils.normalize_returns(data=returns)
+    if isinstance(returns, DataFrame):
+        return Series({col: _ratio(returns[col]) for col in returns.columns})
+    return _ratio(returns)
+
+
+@overload
+def skew(returns: Series, prepare_returns: bool = True) -> float: ...
+@overload
+def skew(returns: DataFrame, prepare_returns: bool = True) -> Series: ...
+def skew(returns: Series | DataFrame, prepare_returns: bool = True) -> float | Series:
+    """Skewness of the return distribution."""
+
+    normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
+    return normalized.skew()
+
+
+@overload
+def kurtosis(returns: Series, prepare_returns: bool = True) -> float: ...
+@overload
+def kurtosis(returns: DataFrame, prepare_returns: bool = True) -> Series: ...
+def kurtosis(
+    returns: Series | DataFrame, prepare_returns: bool = True
+) -> float | Series:
+    """Kurtosis of the return distribution."""
+
+    normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
+    return normalized.kurtosis()

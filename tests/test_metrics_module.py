@@ -80,3 +80,24 @@ def test_calmar_matches_components(sample_returns):
     expected_max_dd = stats.max_drawdown(normalized)
     result = metrics.calmar(sample_returns, periods=periods)
     assert result == pytest.approx(expected_cagr / abs(expected_max_dd))
+
+
+def test_omega_ratio_and_gain_to_pain(sample_returns):
+    manual = sample_returns - 0
+    gains = manual[manual > 0].sum()
+    losses = -(manual[manual < 0].sum())
+    assert metrics.omega_ratio(sample_returns) == pytest.approx(gains / losses)
+    assert metrics.gain_to_pain_ratio(sample_returns) == pytest.approx(gains / losses)
+    df = pd.DataFrame({"a": sample_returns, "b": sample_returns * -1})
+    omega = metrics.omega_ratio(df)
+    gain_to_pain = metrics.gain_to_pain_ratio(df)
+    assert isinstance(omega, pd.Series)
+    assert isinstance(gain_to_pain, pd.Series)
+
+
+def test_skew_and_kurtosis_against_pandas(sample_returns):
+    assert metrics.skew(sample_returns) == pytest.approx(sample_returns.skew())
+    assert metrics.kurtosis(sample_returns) == pytest.approx(sample_returns.kurtosis())
+    df = pd.DataFrame({"a": sample_returns, "b": sample_returns * 1.2})
+    pd.testing.assert_series_equal(metrics.skew(df), df.skew())
+    pd.testing.assert_series_equal(metrics.kurtosis(df), df.kurtosis())
