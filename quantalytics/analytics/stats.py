@@ -470,6 +470,10 @@ def cagr(
 
     When rf is provided, returns: CAGR - rf
     """
+    # Use the date range from the dataset, otherwise override.
+    if not isinstance(returns.index, DatetimeIndex):
+        periods: int = periods or 365
+
     if returns.empty:
         return Series(dtype=float) if isinstance(returns, DataFrame) else _np.nan
     # Calculate total return (compound)

@@ -298,45 +298,23 @@ def serenity_index(
 def serenity_index(
     returns: Series | DataFrame, rf: float = 0, prepare_returns: bool = True
 ) -> float | Series:
-    """Serenity index (annualized return divided by ulcer index * CVaR pitfall)."""
+    """
+    Serenity index (annualized return divided by ulcer index * CVaR pitfall).
+    https://www.keyquant.com/Download/GetFile8e2a.pdf?Filename=%5CPublications%5CKeyQuant_WhitePaper_APT_Part1.pdf
+    """
 
-    normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
-    ui = ulcer_index(normalized, prepare_returns=False)
-    threshold = conditional_value_at_risk(normalized, prepare_returns=False)
-    std = normalized.std(ddof=1)
-
-    def _safe_divide(numerator, denominator):
-        if isinstance(denominator, Series):
-            safe = denominator.replace(0, _np.nan)
-            return numerator.divide(safe)
-        return numerator / denominator if denominator != 0 else float("nan")
-
-    pitfall = _safe_divide(-threshold, std)
-
-    if isinstance(normalized, Series):
-        numerator = normalized.sum() - rf
-        denominator = ui * pitfall
-        return numerator / denominator if denominator else float("nan")
-
-    ui_series = (
-        ui
-        if isinstance(ui, Series)
-        else Series({col: ui for col in normalized.columns})
+    normalized: Series | DataFrame = (
+        _utils.normalize_returns(data=returns) if prepare_returns else returns
     )
-    pitfall_series = (
-        pitfall
-        if isinstance(pitfall, Series)
-        else Series({col: pitfall for col in normalized.columns})
+    dd: Series | DataFrame = to_drawdown_series(
+        returns=normalized, prepare_returns=False
     )
 
-    results = {}
-    for col in normalized.columns:
-        denom = ui_series[col] * pitfall_series[col]
-        if denom == 0:
-            results[col] = float("nan")
-        else:
-            results[col] = (normalized[col].sum() - rf) / denom
-    return Series(results)
+    pitfall = -cvar(returns=dd) / normalized.std()
+    ulcer = ulcer_index(returns=normalized, prepare_returns=False)
+    cagr_pct = cagr(returns=normalized, rf=rf)
+
+    return cagr_pct / (ulcer * pitfall)
 
 
 @overload

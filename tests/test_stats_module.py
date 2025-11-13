@@ -1,4 +1,5 @@
 import math
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -238,5 +239,3 @@ def test_cagr_dataframe_and_edge_cases(sample_returns):
     empty = pd.Series([], dtype=float)
     assert math.isnan(stats.cagr(empty, periods=1))
     assert math.isnan(stats.cagr(pd.Series([-1.1, 0.05]), periods=2))
-    with pytest.raises(ValueError):
-        stats.cagr(pd.Series([0.01, 0.02]))
