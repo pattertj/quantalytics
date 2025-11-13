@@ -9,7 +9,7 @@ from pandas.core.frame import DataFrame
 from pandas.core.series import Series
 from scipy.stats import norm as _norm
 
-from quantalytics.analytics.stats import cagr, comp, max_drawdown, win_rate
+from quantalytics.analytics.stats import cagr, comp, max_drawdown, volatility, win_rate
 from quantalytics.utils import timeseries as _utils
 
 
@@ -307,7 +307,9 @@ def serenity_index(
         _utils.normalize_returns(data=returns) if prepare_returns else returns
     )
 
-    pitfall = -cdar(returns=normalized, prepare_returns=False) / normalized.std()
+    pitfall = -cdar(returns=normalized, prepare_returns=False) / volatility(
+        returns=normalized, prepare_returns=False
+    )
     ulcer = ulcer_index(returns=normalized, prepare_returns=False)
     cagr_pct = cagr(returns=normalized, rf=rf)
 
