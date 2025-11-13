@@ -1,14 +1,6 @@
 """Aggregate analytics helpers so downstream consumers can import from `quantalytics.analytics`."""
 
-from .metrics import (
-    calmar,
-    gain_to_pain_ratio,
-    kurtosis,
-    omega_ratio,
-    sharpe,
-    skew,
-    sortino,
-)
+from .metrics import calmar, gain_to_pain_ratio, kurtosis, omega, sharpe, skew, sortino
 from .stats import (
     avg_loss,
     avg_return,
@@ -64,4 +56,8 @@ __all__: list[str] = [
     "annualized_return",
     "annualized_volatility",
     "cagr",
+    "omega",
+    "gain_to_pain_ratio",
+    "skew",
+    "kurtosis",
 ]

@@ -86,10 +86,10 @@ def test_omega_ratio_and_gain_to_pain(sample_returns):
     manual = sample_returns - 0
     gains = manual[manual > 0].sum()
     losses = -(manual[manual < 0].sum())
-    assert metrics.omega_ratio(sample_returns) == pytest.approx(gains / losses)
+    assert metrics.omega(sample_returns) == pytest.approx(gains / losses)
     assert metrics.gain_to_pain_ratio(sample_returns) == pytest.approx(gains / losses)
     df = pd.DataFrame({"a": sample_returns, "b": sample_returns * -1})
-    omega = metrics.omega_ratio(df)
+    omega = metrics.omega(df)
     gain_to_pain = metrics.gain_to_pain_ratio(df)
     assert isinstance(omega, pd.Series)
     assert isinstance(gain_to_pain, pd.Series)

@@ -151,10 +151,10 @@ def autocorr_penalty(returns: Series | DataFrame, prepare_returns=False) -> floa
 
 
 @overload
-def omega_ratio(returns: Series, threshold: float = 0.0) -> float: ...
+def omega(returns: Series, threshold: float = 0.0) -> float: ...
 @overload
-def omega_ratio(returns: DataFrame, threshold: float = 0.0) -> Series: ...
-def omega_ratio(returns: Series | DataFrame, threshold: float = 0.0) -> float | Series:
+def omega(returns: DataFrame, threshold: float = 0.0) -> Series: ...
+def omega(returns: Series | DataFrame, threshold: float = 0.0) -> float | Series:
     """Omega ratio: upside deviation divided by downside deviation relative to `threshold`."""
 
     def _omega(series: Series) -> float:
