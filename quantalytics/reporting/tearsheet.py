@@ -368,7 +368,7 @@ def html(
 
     positive_sum = series[series > 0].sum()
     negative_sum = abs(series[series < 0].sum())
-    omega_ratio = positive_sum / negative_sum if negative_sum else float("nan")
+    omega = positive_sum / negative_sum if negative_sum else float("nan")
     romad = (
         stats.annualized_return / abs(stats.max_drawdown)
         if stats.max_drawdown != 0
@@ -383,7 +383,7 @@ def html(
     ulcer_idx = math.sqrt(np.mean((drawdown_path * 100) ** 2))
     serenity = stats.annualized_return / ulcer_idx if ulcer_idx != 0 else float("nan")
 
-    omega_display = "N/A" if math.isnan(omega_ratio) else f"{omega_ratio:.2f}"
+    omega_display = "N/A" if math.isnan(omega) else f"{omega:.2f}"
     risk_adjusted_rows = [
         ["Sharpe Ratio", f"{stats.sharpe:.2f}"],
         ["Sortino Ratio", f"{stats.sortino:.2f}"],

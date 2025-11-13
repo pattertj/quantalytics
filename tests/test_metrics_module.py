@@ -82,12 +82,14 @@ def test_calmar_matches_components(sample_returns):
     assert result == pytest.approx(expected_cagr / abs(expected_max_dd))
 
 
-def test_omega_ratio_and_gain_to_pain(sample_returns):
+def test_omega_and_gain_to_pain(sample_returns):
     manual = sample_returns - 0
     gains = manual[manual > 0].sum()
     losses = -(manual[manual < 0].sum())
     assert metrics.omega(sample_returns) == pytest.approx(gains / losses)
-    assert metrics.gain_to_pain_ratio(sample_returns) == pytest.approx(gains / losses)
+    assert metrics.gain_to_pain_ratio(sample_returns) == pytest.approx(
+        manual.sum() / losses
+    )
     df = pd.DataFrame({"a": sample_returns, "b": sample_returns * -1})
     omega = metrics.omega(df)
     gain_to_pain = metrics.gain_to_pain_ratio(df)
@@ -101,3 +103,15 @@ def test_skew_and_kurtosis_against_pandas(sample_returns):
     df = pd.DataFrame({"a": sample_returns, "b": sample_returns * 1.2})
     pd.testing.assert_series_equal(metrics.skew(df), df.skew())
     pd.testing.assert_series_equal(metrics.kurtosis(df), df.kurtosis())
+
+
+def test_gain_to_pain_handles_edge_cases():
+    positive = pd.Series([0.01, 0.02])
+    assert metrics.gain_to_pain_ratio(positive) == float("inf")
+    assert metrics.gain_to_pain_ratio(pd.Series([-0.01, -0.02])) == -1.0
+
+
+def test_omega_handles_edge_cases():
+    positive = pd.Series([0.01, 0.02])
+    assert metrics.omega(positive) == float("inf")
+    assert metrics.omega(pd.Series([-0.01, -0.02])) == 0.0

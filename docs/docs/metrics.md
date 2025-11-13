@@ -70,7 +70,7 @@ smart_sortino_half = qa.analytics.smart_sortino_over_sqrt_two(returns)
 - `prob_sharpe_ratio` returns the probability that your sample Sharpe exceeds a target.
 - `smart_sharpe_ratio` and `smart_sortino_ratio` adjust the classical measures for skew/kurtosis.
 - `/sqrt(2)` variants rescale Sortino-style ratios to account for half-normal downside distributions.
-- `omega_ratio` compares upside vs downside partial moments around a target threshold.
+- `omega` compares upside vs downside partial moments around a target threshold.
 - Use `max_drawdown_percent`, `longest_drawdown_days`, and `underwater_percent` to translate drawdown paths into presentation-ready KPIs.
 - `average_drawdown`, `average_drawdown_days`, and `recovery_factor` capture typical drawdown depth/duration and how quickly returns reclaim new highs.
 - `ulcer_index` and `serenity_index` summarize drawdown variability and annualized-growth efficiency in a single score.

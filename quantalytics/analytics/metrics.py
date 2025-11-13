@@ -179,15 +179,15 @@ def gain_to_pain_ratio(returns: DataFrame, prepare_returns: bool = True) -> Seri
 def gain_to_pain_ratio(
     returns: Series | DataFrame, prepare_returns: bool = True
 ) -> float | Series:
-    """Gain-to-pain ratio computed as sum positive returns over absolute sum of losses."""
+    """Gain-to-pain ratio computed as sum all returns over absolute sum of losses."""
 
     def _ratio(series: Series) -> float:
         clean = series
-        positive = clean[clean > 0].sum()
+        total = clean.sum()
         negative = -clean[clean < 0].sum()
         if negative == 0:
-            return float("inf") if positive > 0 else float("nan")
-        return float(positive / negative)
+            return float("inf") if total > 0 else float("nan")
+        return float(total / negative)
 
     if prepare_returns:
         returns = _utils.normalize_returns(data=returns)
