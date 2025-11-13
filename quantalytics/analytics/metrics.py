@@ -291,7 +291,7 @@ def serenity_index(
     normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
     ui = ulcer_index(normalized, prepare_returns=False)
     threshold = conditional_value_at_risk(normalized, prepare_returns=False)
-    std = normalized.std(ddof=0)
+    std = normalized.std(ddof=1)
     pitfall = -threshold / std
 
     if isinstance(normalized, Series):
@@ -374,7 +374,7 @@ def _value_at_risk(
 ) -> float:
     clean = _utils.normalize_returns(data=series) if prepare_returns else series
     mu = clean.mean()
-    vol = sigma * clean.std(ddof=0)
+    vol = sigma * clean.std(ddof=1)
     conf = confidence / 100 if confidence > 1 else confidence
     return _norm.ppf(1 - conf, mu, vol)
 
