@@ -156,7 +156,7 @@ def test_ulcer_index_calc():
     ui = metrics.ulcer_index(series)
     prices = (1 + series).cumprod()
     running_max = prices.expanding().max()
-    drawdowns = (prices / running_max - 1) * 100
+    drawdowns = prices / running_max - 1
     expected = math.sqrt((drawdowns**2).mean())
     assert ui == pytest.approx(expected)
     df = pd.DataFrame({"a": series, "b": series * 0.5})

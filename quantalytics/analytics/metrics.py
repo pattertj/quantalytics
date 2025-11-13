@@ -229,20 +229,16 @@ def ulcer_index(returns: DataFrame, prepare_returns: bool = True) -> Series: ...
 def ulcer_index(
     returns: Series | DataFrame, prepare_returns: bool = True
 ) -> float | Series:
-    """
-    Calculate Ulcer Index (standard definition by Peter Martin).
+    """Calculate standard Ulcer Index."""
+    normalized: Series | DataFrame = (
+        _utils.normalize_returns(data=returns) if prepare_returns else returns
+    )
 
-    Measures the depth and duration of drawdowns from peak.
-    """
-    normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
-    # Convert to prices
     prices = (1 + normalized).cumprod()
-
-    # Calculate drawdowns from running maximum
     running_max = prices.expanding().max()
-    drawdowns = (prices / running_max - 1) * 100  # As percentage
+    drawdowns = prices / running_max - 1
 
-    # Ulcer Index: RMS of drawdowns
+    # Use ALL drawdowns, not just negative ones
     if isinstance(drawdowns, DataFrame):
         return Series(
             {
