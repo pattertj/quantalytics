@@ -149,3 +149,21 @@ def test_ulcer_and_risk_metrics(sample_returns):
     pd.testing.assert_series_equal(
         metrics.conditional_value_at_risk(df), metrics.cvar(df)
     )
+
+
+def test_ulcer_index_calc():
+    series = pd.Series([0.01, -0.01, 0.02, -0.05, 0.03])
+    ui = metrics.ulcer_index(series)
+    prices = (1 + series).cumprod()
+    running_max = prices.expanding().max()
+    drawdowns = (prices / running_max - 1) * 100
+    expected = math.sqrt((drawdowns**2).mean())
+    assert ui == pytest.approx(expected)
+    df = pd.DataFrame({"a": series, "b": series * 0.5})
+    per_column = metrics.ulcer_index(df)
+    assert per_column["a"] == pytest.approx(expected)
+    assert isinstance(per_column, pd.Series)
+    rf = 0.01
+    upi_value = metrics.ulcer_performance_index(series, rf=rf)
+    comp = ((1 + series).prod() - 1) - rf
+    assert upi_value == pytest.approx(comp / ui)

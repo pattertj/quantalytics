@@ -229,17 +229,28 @@ def ulcer_index(returns: DataFrame, prepare_returns: bool = True) -> Series: ...
 def ulcer_index(
     returns: Series | DataFrame, prepare_returns: bool = True
 ) -> float | Series:
-    """Calculates the ulcer index (downside deviation) for returns."""
+    """
+    Calculate Ulcer Index (standard definition by Peter Martin).
 
-    drawdowns = to_drawdown_series(returns, prepare_returns=prepare_returns)
+    Measures the depth and duration of drawdowns from peak.
+    """
+    normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
+    # Convert to prices
+    prices = (1 + normalized).cumprod()
 
-    def _compute(series: Series) -> float:
-        negative = series[series < 0]
-        return 0.0 if negative.empty else float(_np.sqrt(_np.mean(negative**2)))
+    # Calculate drawdowns from running maximum
+    running_max = prices.expanding().max()
+    drawdowns = (prices / running_max - 1) * 100  # As percentage
 
+    # Ulcer Index: RMS of drawdowns
     if isinstance(drawdowns, DataFrame):
-        return Series({col: _compute(drawdowns[col]) for col in drawdowns.columns})
-    return _compute(drawdowns)
+        return Series(
+            {
+                col: float(sqrt((drawdowns[col] ** 2).mean()))
+                for col in drawdowns.columns
+            }
+        )
+    return float(sqrt((drawdowns**2).mean()))
 
 
 @overload
