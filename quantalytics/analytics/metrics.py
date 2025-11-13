@@ -3,11 +3,13 @@ from __future__ import annotations
 from math import sqrt
 from typing import overload
 
+import numpy as _np
 from numpy.ma.extras import corrcoef
 from pandas.core.frame import DataFrame
 from pandas.core.series import Series
+from scipy.stats import norm as _norm
 
-from quantalytics.analytics.stats import cagr, max_drawdown
+from quantalytics.analytics.stats import cagr, comp, max_drawdown, win_rate
 from quantalytics.utils import timeseries as _utils
 
 
@@ -218,3 +220,269 @@ def kurtosis(
 
     normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
     return normalized.kurtosis()
+
+
+@overload
+def ulcer_index(returns: Series, prepare_returns: bool = True) -> float: ...
+@overload
+def ulcer_index(returns: DataFrame, prepare_returns: bool = True) -> Series: ...
+def ulcer_index(
+    returns: Series | DataFrame, prepare_returns: bool = True
+) -> float | Series:
+    """Calculates the ulcer index (downside deviation) for returns."""
+
+    drawdowns = to_drawdown_series(returns, prepare_returns=prepare_returns)
+
+    def _compute(series: Series) -> float:
+        negative = series[series < 0]
+        return 0.0 if negative.empty else float(_np.sqrt(_np.mean(negative**2)))
+
+    if isinstance(drawdowns, DataFrame):
+        return Series({col: _compute(drawdowns[col]) for col in drawdowns.columns})
+    return _compute(drawdowns)
+
+
+@overload
+def ulcer_performance_index(
+    returns: Series, rf: float = 0, prepare_returns: bool = True
+) -> float: ...
+@overload
+def ulcer_performance_index(
+    returns: DataFrame, rf: float = 0, prepare_returns: bool = True
+) -> Series: ...
+def ulcer_performance_index(
+    returns: Series | DataFrame, rf: float = 0, prepare_returns: bool = True
+) -> float | Series:
+    """Return comp / ulcer index ratio."""
+
+    normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
+    base = comp(normalized)
+    ui = ulcer_index(normalized, prepare_returns=False)
+    if isinstance(base, Series):
+        return base.subtract(rf).divide(ui)
+    return (base - rf) / ui
+
+
+@overload
+def upi(returns: Series, rf: float = 0, prepare_returns: bool = True) -> float: ...
+@overload
+def upi(returns: DataFrame, rf: float = 0, prepare_returns: bool = True) -> Series: ...
+def upi(
+    returns: Series | DataFrame, rf: float = 0, prepare_returns: bool = True
+) -> float | Series:
+    """Alias for ulcer_performance_index."""
+
+    return ulcer_performance_index(returns, rf=rf, prepare_returns=prepare_returns)
+
+
+@overload
+def serenity_index(
+    returns: Series, rf: float = 0, prepare_returns: bool = True
+) -> float: ...
+@overload
+def serenity_index(
+    returns: DataFrame, rf: float = 0, prepare_returns: bool = True
+) -> Series: ...
+def serenity_index(
+    returns: Series | DataFrame, rf: float = 0, prepare_returns: bool = True
+) -> float | Series:
+    """Serenity index (annualized return divided by ulcer index * CVaR pitfall)."""
+
+    normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
+    ui = ulcer_index(normalized, prepare_returns=False)
+    threshold = conditional_value_at_risk(normalized, prepare_returns=False)
+    std = normalized.std(ddof=0)
+    pitfall = -threshold / std
+
+    if isinstance(normalized, Series):
+        numerator = normalized.sum() - rf
+        denominator = ui * pitfall
+        return numerator / denominator if denominator else float("nan")
+
+    ui_series = (
+        ui
+        if isinstance(ui, Series)
+        else Series({col: ui for col in normalized.columns})
+    )
+    pitfall_series = (
+        pitfall
+        if isinstance(pitfall, Series)
+        else Series({col: pitfall for col in normalized.columns})
+    )
+
+    results = {}
+    for col in normalized.columns:
+        denom = ui_series[col] * pitfall_series[col]
+        if denom == 0:
+            results[col] = float("nan")
+        else:
+            results[col] = (normalized[col].sum() - rf) / denom
+    return Series(results)
+
+
+@overload
+def risk_of_ruin(returns: Series, prepare_returns: bool = True) -> float: ...
+@overload
+def risk_of_ruin(returns: DataFrame, prepare_returns: bool = True) -> Series: ...
+def risk_of_ruin(
+    returns: Series | DataFrame, prepare_returns: bool = True
+) -> float | Series:
+    """Return the risk of ruin after a sequence of returns."""
+
+    normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
+    if isinstance(normalized, DataFrame):
+        return Series(
+            {
+                col: risk_of_ruin(normalized[col], prepare_returns=False)
+                for col in normalized.columns
+            }
+        )
+    wins = win_rate(normalized, prepare_returns=False)
+    return ((1 - wins) / (1 + wins)) ** len(normalized)
+
+
+@overload
+def ror(returns: Series, prepare_returns: bool = True) -> float: ...
+@overload
+def ror(returns: DataFrame, prepare_returns: bool = True) -> Series: ...
+def ror(returns: Series | DataFrame, prepare_returns: bool = True) -> float | Series:
+    """Alias for risk_of_ruin."""
+
+    return risk_of_ruin(returns, prepare_returns=prepare_returns)
+
+
+@overload
+def to_drawdown_series(returns: Series, prepare_returns: bool = True) -> Series: ...
+@overload
+def to_drawdown_series(
+    returns: DataFrame, prepare_returns: bool = True
+) -> DataFrame: ...
+def to_drawdown_series(
+    returns: Series | DataFrame, prepare_returns: bool = True
+) -> Series | DataFrame:
+    """Convert return series into cumulative drawdown series."""
+
+    normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
+    prices = (1 + normalized).cumprod()
+    running_max = prices.cummax()
+    dd = prices / running_max - 1
+    return dd.fillna(0)
+
+
+def _value_at_risk(
+    series: Series, sigma: float, confidence: float, prepare_returns: bool
+) -> float:
+    clean = _utils.normalize_returns(data=series) if prepare_returns else series
+    mu = clean.mean()
+    vol = sigma * clean.std(ddof=0)
+    conf = confidence / 100 if confidence > 1 else confidence
+    return _norm.ppf(1 - conf, mu, vol)
+
+
+@overload
+def value_at_risk(
+    returns: Series,
+    sigma: float = 1,
+    confidence: float = 0.95,
+    prepare_returns: bool = True,
+) -> float: ...
+@overload
+def value_at_risk(
+    returns: DataFrame,
+    sigma: float = 1,
+    confidence: float = 0.95,
+    prepare_returns: bool = True,
+) -> Series: ...
+def value_at_risk(
+    returns: Series | DataFrame,
+    sigma: float = 1,
+    confidence: float = 0.95,
+    prepare_returns: bool = True,
+) -> float | Series:
+    """Variance-covariance value at risk using Gaussian approximation."""
+
+    if isinstance(returns, DataFrame):
+        return Series(
+            {
+                col: _value_at_risk(
+                    returns[col],
+                    sigma=sigma,
+                    confidence=confidence,
+                    prepare_returns=prepare_returns,
+                )
+                for col in returns.columns
+            }
+        )
+    return _value_at_risk(
+        returns, sigma=sigma, confidence=confidence, prepare_returns=prepare_returns
+    )
+
+
+def var(
+    returns: Series | DataFrame,
+    sigma: float = 1,
+    confidence: float = 0.95,
+    prepare_returns: bool = True,
+) -> float | Series:
+    """Alias for value_at_risk."""
+
+    return value_at_risk(
+        returns, sigma=sigma, confidence=confidence, prepare_returns=prepare_returns
+    )
+
+
+@overload
+def conditional_value_at_risk(
+    returns: Series,
+    sigma: float = 1,
+    confidence: float = 0.95,
+    prepare_returns: bool = True,
+) -> float: ...
+@overload
+def conditional_value_at_risk(
+    returns: DataFrame,
+    sigma: float = 1,
+    confidence: float = 0.95,
+    prepare_returns: bool = True,
+) -> Series: ...
+def conditional_value_at_risk(
+    returns: Series | DataFrame,
+    sigma: float = 1,
+    confidence: float = 0.95,
+    prepare_returns: bool = True,
+) -> float | Series:
+    """Expected shortfall below the VaR threshold."""
+
+    if isinstance(returns, DataFrame):
+        return Series(
+            {
+                col: conditional_value_at_risk(
+                    returns[col],
+                    sigma=sigma,
+                    confidence=confidence,
+                    prepare_returns=prepare_returns,
+                )
+                for col in returns.columns
+            }
+        )
+
+    clean = _utils.normalize_returns(data=returns) if prepare_returns else returns
+    threshold = value_at_risk(
+        clean, sigma=sigma, confidence=confidence, prepare_returns=False
+    )
+    tail = clean[clean < threshold]
+    mean_tail = float("nan") if tail.empty else tail.mean()
+    return threshold if _np.isnan(mean_tail) else float(mean_tail)
+
+
+def cvar(
+    returns: Series | DataFrame,
+    sigma: float = 1,
+    confidence: float = 0.95,
+    prepare_returns: bool = True,
+) -> float | Series:
+    """Alias for conditional_value_at_risk."""
+
+    return conditional_value_at_risk(
+        returns, sigma=sigma, confidence=confidence, prepare_returns=prepare_returns
+    )

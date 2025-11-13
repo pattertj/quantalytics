@@ -1,3 +1,4 @@
+import math
 import numpy as np
 import pandas as pd
 import pytest
@@ -115,3 +116,36 @@ def test_omega_handles_edge_cases():
     positive = pd.Series([0.01, 0.02])
     assert metrics.omega(positive) == float("inf")
     assert metrics.omega(pd.Series([-0.01, -0.02])) == 0.0
+
+
+def test_ulcer_and_risk_metrics(sample_returns):
+    ui = metrics.ulcer_index(sample_returns)
+    assert ui >= 0
+    upi = metrics.ulcer_performance_index(sample_returns)
+    assert math.isfinite(upi)
+    assert metrics.upi(sample_returns) == pytest.approx(upi)
+    serenity = metrics.serenity_index(sample_returns)
+    assert math.isfinite(serenity)
+    expected_ror = (
+        (1 - metrics.win_rate(sample_returns)) / (1 + metrics.win_rate(sample_returns))
+    ) ** len(sample_returns)
+    assert metrics.risk_of_ruin(sample_returns) == pytest.approx(expected_ror)
+    assert metrics.ror(sample_returns) == pytest.approx(expected_ror)
+    assert isinstance(
+        metrics.risk_of_ruin(
+            pd.DataFrame({"a": sample_returns, "b": sample_returns * -1})
+        ),
+        pd.Series,
+    )
+    dd = metrics.to_drawdown_series(sample_returns)
+    assert (dd <= 0).all()
+    var = metrics.value_at_risk(sample_returns, confidence=0.95)
+    cvar = metrics.conditional_value_at_risk(sample_returns, confidence=0.95)
+    assert cvar <= var
+    df = pd.DataFrame({"a": sample_returns, "b": sample_returns * 0.5})
+    pd.testing.assert_series_equal(
+        metrics.value_at_risk(df, confidence=95), metrics.var(df, confidence=95)
+    )
+    pd.testing.assert_series_equal(
+        metrics.conditional_value_at_risk(df), metrics.cvar(df)
+    )
