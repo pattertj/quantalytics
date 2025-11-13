@@ -51,6 +51,11 @@ repos:
         pass_filenames: false
       - id: pytest
         name: pytest
-        entry: uv run pytest --cov=quantalytics --cov-report=term-missing --cov-fail-under=87
+        entry: uv run pytest --cov=quantalytics --cov-report=term-missing --cov-fail-under=90
+        language: system
+        pass_filenames: false
+      - id: ty
+        name: ty
+        entry: uv run ty check
         language: system
         pass_filenames: false

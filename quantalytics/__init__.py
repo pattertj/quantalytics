@@ -1,9 +1,17 @@
 """Quantalytics: fast modern quantitative analytics library."""
 
-# Organize the public surface into focused namespaces so consumers
-# access helpers via `quantalytics.analytics`, `quantalytics.charts`, and `quantalytics.reports`.
-from . import analytics as analytics
-from . import charts as charts
-from . import reporting as reports
+from importlib import import_module
 
 __all__ = ["analytics", "charts", "reports"]
+
+
+def __getattr__(name: str):
+    if name in __all__:
+        module = import_module(f"quantalytics.{name}")
+        globals()[name] = module
+        return module
+    raise AttributeError(f"module {__name__} has no attribute {name}")
+
+
+def __dir__():
+    return __all__ + list(globals().keys())

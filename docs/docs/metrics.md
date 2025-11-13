@@ -23,7 +23,6 @@ Fields available on `PerformanceMetrics`:
 - `sortino`
 - `calmar`
 - `max_drawdown`
-- `downside_deviation`
 - `cumulative_return`
 
 ## Individual Metrics

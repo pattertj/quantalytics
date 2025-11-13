@@ -1,10 +1,55 @@
-"""Combined analytics helpers replacing the old ``metrics`` / ``stats`` packages."""
+"""Aggregate analytics helpers so downstream consumers can import from `quantalytics.analytics`."""
 
-from . import core as _core
-from . import performance as _performance
+from .metrics import calmar, sharpe, sortino
+from .stats import (
+    avg_loss,
+    avg_return,
+    avg_win,
+    best,
+    cagr,
+    comp,
+    compsum,
+    consecutive_losses,
+    consecutive_wins,
+    distribution,
+    expected_return,
+    exposure,
+    geometric_mean,
+    ghpr,
+    max_drawdown,
+    outliers,
+    remove_outliers,
+    rolling_volatility,
+    volatility,
+    win_rate,
+    worst,
+)
 
-__all__ = _core.__all__ + _performance.__all__
-
-for _module in (_core, _performance):
-    for _export in _module.__all__:
-        globals()[_export] = getattr(_module, _export)
+__all__: list[str] = [
+    "sharpe",
+    "sortino",
+    "compsum",
+    "comp",
+    "distribution",
+    "expected_return",
+    "geometric_mean",
+    "ghpr",
+    "outliers",
+    "remove_outliers",
+    "best",
+    "worst",
+    "consecutive_wins",
+    "consecutive_losses",
+    "exposure",
+    "win_rate",
+    "avg_return",
+    "avg_win",
+    "avg_loss",
+    "volatility",
+    "rolling_volatility",
+    "max_drawdown",
+    "calmar",
+    "annualized_return",
+    "annualized_volatility",
+    "cagr",
+]

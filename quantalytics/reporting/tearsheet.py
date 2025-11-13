@@ -8,21 +8,21 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable, List, Mapping, Optional
+from typing import Iterable, List, Mapping, Optional, cast
 
 import numpy as np
 import pandas as pd
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from quantalytics.reporting import performance_summary
+
+from ..analytics.stats import compsum
 from ..charts.timeseries import (
     cumulative_returns_chart,
     drawdown_chart,
     rolling_volatility_chart,
 )
-from ..analytics.performance import (
-    cumulative_returns,
-    performance_summary,
-)
+from ..utils.timeseries import ensure_datetime_index
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 _TEMPLATE_ENV = Environment(
@@ -75,16 +75,18 @@ def render_basic_tearsheet(
     """Render a high-level tear sheet from series of returns."""
 
     series = pd.Series(returns)
+    periods = periods_per_year if isinstance(periods_per_year, int) else 252
     metrics = performance_summary(
         series,
         risk_free_rate=risk_free_rate,
         target_return=target_return,
-        periods_per_year=periods_per_year,
+        periods=periods,
     )
 
-    sections = config.sections if config else []
-    if not sections:
-        sections = [
+    sections: list[TearsheetSection] = (
+        config.sections
+        if config
+        else [
             TearsheetSection(
                 title="Cumulative Returns",
                 description=r"Growth of $1 invested in the strategy versus benchmark.",
@@ -103,6 +105,7 @@ def render_basic_tearsheet(
                 figure_html=_figure_to_html(drawdown_chart(series)),
             ),
         ]
+    )
 
     template = _TEMPLATE_ENV.get_template("tearsheet.html")
     html = template.render(
@@ -121,21 +124,24 @@ def _ensure_datetime_index(series: pd.Series) -> pd.Series:
     return series.copy().set_axis(idx)
 
 
+def _datetime_index(series: pd.Series) -> pd.DatetimeIndex:
+    return cast(pd.DatetimeIndex, ensure_datetime_index(series).index)
+
+
 def _period_return(series: pd.Series, start: pd.Timestamp) -> float:
     if start > series.index[-1]:
         return 0.0
     subset = series[series.index >= start]
-    if subset.empty:
-        return 0.0
-    return (1 + subset).prod() - 1
+    return 0.0 if subset.empty else (1 + subset).prod() - 1
 
 
 def _yearly_table(series: pd.Series) -> list[list[str]]:
+    index: pd.DatetimeIndex = _datetime_index(series)
     cum = (1 + series).cumprod() - 1
-    years = sorted({idx.year for idx in series.index})
+    years = sorted({idx.year for idx in index})
     rows = []
     for year in years:
-        mask = series.index.year == year
+        mask = index.year == year  # ty: ignore [unresolved-attribute]
         if not mask.any():
             continue
         year_return = (1 + series[mask]).prod() - 1
@@ -162,22 +168,20 @@ def _drawdown_segments(series: pd.Series) -> tuple[pd.Series, list[dict]]:
             if current_start is None:
                 current_start = date
                 min_depth = value
-            else:
-                if value < min_depth:
-                    min_depth = value
-        else:
-            if current_start is not None:
-                duration = (date - current_start).days or 1
-                segments.append(
-                    {
-                        "start": current_start,
-                        "end": date,
-                        "drawdown": min_depth,
-                        "duration": duration,
-                    }
-                )
-                current_start = None
-                min_depth = 0.0
+            elif value < min_depth:
+                min_depth = value
+        elif current_start is not None:
+            duration = (date - current_start).days or 1
+            segments.append(
+                {
+                    "start": current_start,
+                    "end": date,
+                    "drawdown": min_depth,
+                    "duration": duration,
+                }
+            )
+            current_start = None
+            min_depth = 0.0
     if current_start is not None:
         end = series.index[-1]
         duration = (end - current_start).days or 1
@@ -217,10 +221,7 @@ def _heatmap_matrix(
         row = []
         for month in range(1, 13):
             mask = (monthly.index.year == year) & (monthly.index.month == month)
-            if mask.any():
-                value = monthly[mask].iloc[-1] * 100
-            else:
-                value = 0.0
+            value = monthly[mask].iloc[-1] * 100 if mask.any() else 0.0
             row.append(round(float(value), 2))
         matrix.append(row)
     return month_names, [str(y) for y in selected_years], matrix
@@ -232,16 +233,22 @@ def _win_rate(series: pd.Series, freq: str) -> float:
         return float(positive / len(series) * 100) if series.size else 0.0
     freq_map = {"M": "ME", "Q": "QE", "A": "YE"}
     resampled = series.resample(freq_map.get(freq, freq)).sum()
-    if resampled.empty:
-        return 0.0
-    return float((resampled > 0).mean() * 100)
+    return 0.0 if resampled.empty else float((resampled > 0).mean() * 100)
 
 
 def _format_percent(value: float, decimals: int = 2) -> str:
     return f"{value * 100:.{decimals}f}%"
 
 
-def _nan_safe(sequence: Iterable[float]) -> list[Optional[float]]:
+def _nan_safe(sequence: Iterable[float | None]) -> list[Optional[float]]:
+    """converts NaN values to None in a sequence, making it "NaN-safe" for operations that don't handle NaN well.
+
+    Args:
+        sequence (Iterable[float]): _description_
+
+    Returns:
+        list[Optional[float]]: _description_
+    """
     return [
         None
         if value is None or (isinstance(value, float) and math.isnan(value))
@@ -267,9 +274,7 @@ def _rolling_sortino(
             return float("nan")
         downside = arr[arr < 0]
         dd = np.sqrt(np.mean(downside**2)) if downside.size else 0.0
-        if dd == 0:
-            return float("nan")
-        return arr.mean() / dd * math.sqrt(ann_factor)
+        return float("nan") if dd == 0 else arr.mean() / dd * math.sqrt(ann_factor)
 
     raw = series.rolling(window, min_periods=3).apply(
         lambda values: _window_sortino(np.array(values)), raw=True
@@ -306,13 +311,14 @@ def html(
         series = np.log1p(series)
 
     series = _ensure_datetime_index(series)
-    freq_code = series.index.freqstr or "B"
+    index: pd.DatetimeIndex = _datetime_index(series)
+    freq_code = index.freqstr or "B"
     freq_symbol = freq_code[0] if freq_code else "D"
     ann_factor_map = {"D": 252, "B": 252, "W": 52, "M": 12, "Q": 4, "A": 1}
     ann_factor = ann_factor_map.get(freq_symbol.upper(), 252)
 
-    stats = performance_summary(series, periods_per_year=freq_symbol)
-    cum_returns = cumulative_returns(series)
+    stats = performance_summary(series, periods=ann_factor)
+    cum_returns = compsum(series)
     drawdown_path, segments = _drawdown_segments(series)
     coverage_start = series.index[0]
     coverage_end = series.index[-1]
@@ -341,8 +347,8 @@ def html(
 
     year_labels: list[str] = []
     year_values: list[float] = []
-    for year in sorted({idx.year for idx in series.index}):
-        mask = series.index.year == year
+    for year in sorted({idx.year for idx in index}):
+        mask = index.year == year  # ty: ignore [unresolved-attribute]
         if not mask.any():
             continue
         year_labels.append(str(year))
@@ -377,7 +383,7 @@ def html(
     ulcer_idx = math.sqrt(np.mean((drawdown_path * 100) ** 2))
     serenity = stats.annualized_return / ulcer_idx if ulcer_idx != 0 else float("nan")
 
-    omega_display = f"{omega_ratio:.2f}" if not math.isnan(omega_ratio) else "N/A"
+    omega_display = "N/A" if math.isnan(omega_ratio) else f"{omega_ratio:.2f}"
     risk_adjusted_rows = [
         ["Sharpe Ratio", f"{stats.sharpe:.2f}"],
         ["Sortino Ratio", f"{stats.sortino:.2f}"],
@@ -432,7 +438,7 @@ def html(
         ["Underwater %", f"{underwater_pct:.2f}%"],
         [
             "Recovery Factor",
-            f"{recovery_factor:.2f}x" if not math.isnan(recovery_factor) else "N/A",
+            "N/A" if math.isnan(recovery_factor) else f"{recovery_factor:.2f}x",
         ],
         ["Ulcer Index", f"{ulcer_idx:.2f}"],
     ]
@@ -445,7 +451,7 @@ def html(
             "Expected Shortfall",
             f"{series[series <= np.percentile(series, 5)].mean() * 100:.2f}%",
         ],
-        ["Serenity Index", f"{serenity:.2f}" if not math.isnan(serenity) else "N/A"],
+        ["Serenity Index", "N/A" if math.isnan(serenity) else f"{serenity:.2f}"],
     ]
 
     default_parameters = {
@@ -509,7 +515,7 @@ def html(
         "sharpe": f"{stats.sharpe:.2f}",
         "max_drawdown": f"{stats.max_drawdown * 100:.2f}%",
         "win_rate": f"{win_rate_values[0]:.0f}%",
-        "romad": f"{romad:.2f}x" if not math.isnan(romad) else "N/A",
+        "romad": "N/A" if math.isnan(romad) else f"{romad:.2f}x",
         "sortino": f"{stats.sortino:.2f}",
     }
 
@@ -648,7 +654,7 @@ def html(
     return tearsheet
 
 
-__all__ = [
+__all__: list[str] = [
     "Tearsheet",
     "TearsheetSection",
     "TearsheetConfig",

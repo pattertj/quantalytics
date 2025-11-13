@@ -8,7 +8,7 @@ from typing import Iterable, Optional, Union
 import pandas as pd
 import plotly.graph_objects as go
 
-from ..analytics.performance import cumulative_returns
+from ..analytics.stats import compsum
 from ..utils.timeseries import ensure_datetime_index, rolling_statistic
 
 
@@ -41,7 +41,7 @@ def cumulative_returns_chart(
     """Create a cumulative returns chart."""
 
     series = ensure_datetime_index(_validate_returns(returns))
-    cum = cumulative_returns(series)
+    cum = compsum(series)
 
     fig = go.Figure()
     fig.add_trace(
@@ -56,7 +56,7 @@ def cumulative_returns_chart(
 
     if benchmark is not None:
         benchmark_series = ensure_datetime_index(pd.Series(benchmark))
-        benchmark_cum = cumulative_returns(benchmark_series)
+        benchmark_cum = compsum(benchmark_series)
         fig.add_trace(
             go.Scatter(
                 x=benchmark_cum.index,
@@ -119,7 +119,7 @@ def drawdown_chart(
     """Visualize drawdowns over time."""
 
     series = ensure_datetime_index(_validate_returns(returns))
-    cum = cumulative_returns(series)
+    cum = compsum(series)
     running_max = (1 + cum).cummax()
     drawdown = (1 + cum) / running_max - 1
 
