@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from math import sqrt
-from typing import overload
+from typing import Optional, overload
 
 import numpy as _np
 from numpy.ma.extras import corrcoef
@@ -17,7 +17,7 @@ from quantalytics.utils import timeseries as _utils
 def sharpe(
     returns: Series,
     rf: float = 0,
-    periods: int = 365,
+    periods: Optional[int] = 365,
     annualize: bool = True,
     smart: bool = False,
 ) -> float: ...
@@ -32,7 +32,7 @@ def sharpe(
 def sharpe(
     returns: Series | DataFrame,
     rf: float = 0,
-    periods: int = 365,
+    periods: Optional[int] = 365,
     annualize: bool = True,
     smart: bool = False,
 ) -> float | Series:
@@ -72,7 +72,7 @@ def sharpe(
 def sortino(
     returns: Series,
     rf: float = 0,
-    periods: int = 365,
+    periods: Optional[int] = 365,
     annualize: bool = True,
     smart: bool = False,
 ) -> float: ...
@@ -87,7 +87,7 @@ def sortino(
 def sortino(
     returns: Series | DataFrame,
     rf: float = 0,
-    periods: int = 365,
+    periods: Optional[int] = 365,
     annualize: bool = True,
     smart: bool = False,
 ) -> float | Series:
@@ -109,10 +109,17 @@ def sortino(
     downside = sqrt((returns[returns < 0] ** 2).sum() / len(returns))
 
     if smart:
-        # Apply autocorrelation penalty
         downside = downside * autocorr_penalty(returns)
 
-    res = returns.mean() / downside
+    mean_returns = returns.mean()
+    if isinstance(downside, Series):
+        safe = downside.replace(0, _np.nan)
+        res = mean_returns / safe
+        res = res.where(~downside.eq(0), float("nan"))
+    else:
+        if downside == 0:
+            return float("nan")
+        res = mean_returns / downside
 
     return res * sqrt(1 if periods is None else periods) if annualize else res
 
@@ -135,7 +142,10 @@ def calmar(
         returns = _utils.normalize_returns(data=returns)
     cagr_pct = cagr(returns=returns, periods=periods)
     max_dd = max_drawdown(returns=returns)
-    return cagr_pct / abs(max_dd)
+    if isinstance(max_dd, Series):
+        safe = max_dd.replace(0, _np.nan)
+        return cagr_pct / safe.abs()
+    return float("nan") if max_dd == 0 else cagr_pct / abs(max_dd)
 
 
 def autocorr_penalty(returns: Series | DataFrame, prepare_returns=False) -> float:
@@ -229,24 +239,19 @@ def ulcer_index(returns: DataFrame, prepare_returns: bool = True) -> Series: ...
 def ulcer_index(
     returns: Series | DataFrame, prepare_returns: bool = True
 ) -> float | Series:
-    """Calculate standard Ulcer Index."""
+    """Calculate Ulcer Index."""
+
     normalized: Series | DataFrame = (
         _utils.normalize_returns(data=returns) if prepare_returns else returns
     )
 
-    prices = (1 + normalized).cumprod()
-    running_max = prices.expanding().max()
-    drawdowns = prices / running_max - 1
+    drawdowns: Series | DataFrame = to_drawdown_series(
+        returns=normalized, prepare_returns=False
+    )
 
-    # Use ALL drawdowns, not just negative ones
     if isinstance(drawdowns, DataFrame):
-        return Series(
-            {
-                col: float(sqrt((drawdowns[col] ** 2).mean()))
-                for col in drawdowns.columns
-            }
-        )
-    return float(sqrt((drawdowns**2).mean()))
+        return _np.sqrt(_np.divide((drawdowns**2).sum(), normalized.shape[0] - 1))
+    return float(_np.sqrt(_np.divide((drawdowns**2).sum(), normalized.shape[0] - 1)))
 
 
 @overload
@@ -299,7 +304,14 @@ def serenity_index(
     ui = ulcer_index(normalized, prepare_returns=False)
     threshold = conditional_value_at_risk(normalized, prepare_returns=False)
     std = normalized.std(ddof=1)
-    pitfall = -threshold / std
+
+    def _safe_divide(numerator, denominator):
+        if isinstance(denominator, Series):
+            safe = denominator.replace(0, _np.nan)
+            return numerator.divide(safe)
+        return numerator / denominator if denominator != 0 else float("nan")
+
+    pitfall = _safe_divide(-threshold, std)
 
     if isinstance(normalized, Series):
         numerator = normalized.sum() - rf
@@ -371,7 +383,8 @@ def to_drawdown_series(
 
     normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
     prices = (1 + normalized).cumprod()
-    running_max = prices.cummax()
+    running_max = prices.expanding().max()
+
     dd = prices / running_max - 1
     return dd.fillna(0)
 

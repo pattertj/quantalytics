@@ -156,7 +156,8 @@ def test_distribution_with_dataframe(sample_returns):
         },
         index=pd.date_range("2024-01-01", periods=3, freq="D"),
     )
-    result = stats.distribution(df, compounded=True)
+    with pytest.warns(UserWarning):
+        result = stats.distribution(df, compounded=True)
     assert "Daily" in result
     assert isinstance(result["Daily"]["values"], list)
 
@@ -179,7 +180,7 @@ def test_win_rate_dataframe_and_zero_series(sample_returns):
             "b": sample_returns * -1,
         }
     )
-    result = stats.win_rate(df, aggregate="M")
+    result = stats.win_rate(df, aggregate="month")
     assert isinstance(result, pd.Series)
     assert stats.win_rate(pd.Series([0.0, 0.0])) == 0.0
 

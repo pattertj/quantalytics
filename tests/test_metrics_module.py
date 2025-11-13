@@ -151,17 +151,39 @@ def test_ulcer_and_risk_metrics(sample_returns):
     )
 
 
+def test_sortino_and_sharpe_require_periods(sample_returns):
+    with pytest.raises(ValueError):
+        metrics.sortino(sample_returns, rf=0.01, periods=None)
+    with pytest.raises(ValueError):
+        metrics.sharpe(sample_returns, rf=0.01, periods=None)
+
+
+def test_calmar_handles_zero_drawdown():
+    flat = pd.Series([0.0, 0.0, 0.0])
+    assert math.isnan(metrics.calmar(flat, periods=1))
+
+
+def test_serenity_index_dataframe_zero_denominator():
+    data = pd.DataFrame({"flat": [0.0, 0.0], "mixed": [0.01, -0.01]})
+    result = metrics.serenity_index(data)
+    assert math.isnan(result["flat"])
+    assert math.isfinite(result["mixed"])
+
+
 def test_ulcer_index_calc():
     series = pd.Series([0.01, -0.01, 0.02, -0.05, 0.03])
     ui = metrics.ulcer_index(series)
     prices = (1 + series).cumprod()
     running_max = prices.expanding().max()
     drawdowns = prices / running_max - 1
-    expected = math.sqrt((drawdowns**2).mean())
+    expected = math.sqrt((drawdowns**2).sum() / (len(series) - 1))
     assert ui == pytest.approx(expected)
     df = pd.DataFrame({"a": series, "b": series * 0.5})
     per_column = metrics.ulcer_index(df)
+    drawdowns_b = metrics.to_drawdown_series(df["b"], prepare_returns=False)
+    expected_b = math.sqrt((drawdowns_b**2).sum() / (len(series) - 1))
     assert per_column["a"] == pytest.approx(expected)
+    assert per_column["b"] == pytest.approx(expected_b)
     assert isinstance(per_column, pd.Series)
     rf = 0.01
     upi_value = metrics.ulcer_performance_index(series, rf=rf)

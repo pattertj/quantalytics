@@ -12,7 +12,7 @@ def sample_returns(periods=60):
 
 def test_heatmap_matrix_creates_year_rows():
     series = pd.Series(
-        [0.01] * 12, index=pd.date_range("2020-01-31", periods=12, freq="M")
+        [0.01] * 12, index=pd.date_range("2020-01-31", periods=12, freq="ME")
     )
     months, years, matrix = tearsheet._heatmap_matrix(series, years=1)
     assert months == [
