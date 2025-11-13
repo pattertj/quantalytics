@@ -600,6 +600,30 @@ def payoff_ratio(returns: DataFrame, prepare_returns: bool = True) -> Series: ..
 def payoff_ratio(
     returns: Series | DataFrame, prepare_returns: bool = True
 ) -> float | Series:
+    """
+    Calculate the Payoff Ratio (Average Win / Average Loss).
+
+    Also known as Win/Loss Ratio. Measures the average size of winning trades
+    relative to losing trades. A value > 1 indicates average wins exceed average losses.
+
+    Parameters
+    ----------
+    returns : Series or DataFrame
+        Returns data
+    prepare_returns : bool, default True
+        Whether to normalize returns before calculation
+
+    Returns
+    -------
+    float or Series
+        Payoff ratio (avg win / avg loss)
+
+    Examples
+    --------
+    >>> returns = pd.Series([0.10, -0.05, 0.03, -0.02, 0.04])
+    >>> payoff_ratio(returns)  # (0.0567 / 0.035) = 1.62
+    1.62
+    """
     normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
 
     def _ratio(series: Series) -> float:
@@ -615,28 +639,8 @@ def payoff_ratio(
 def win_loss_ratio(
     returns: Series | DataFrame, prepare_returns: bool = True
 ) -> float | Series:
+    """Alias for payoff_ratio. See payoff_ratio for documentation."""
     return payoff_ratio(returns, prepare_returns)
-
-
-@overload
-def profit_ratio(returns: Series, prepare_returns: bool = True) -> float: ...
-@overload
-def profit_ratio(returns: DataFrame, prepare_returns: bool = True) -> Series: ...
-def profit_ratio(
-    returns: Series | DataFrame, prepare_returns: bool = True
-) -> float | Series:
-    normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
-
-    def _ratio(series: Series) -> float:
-        wins = series[series >= 0]
-        losses = series[series < 0]
-        win_ratio = abs(wins.mean()) if wins.size else 0.0
-        loss_ratio = abs(losses.mean()) if losses.size else 0.0
-        return float(win_ratio / loss_ratio) if loss_ratio != 0 else 0.0
-
-    if isinstance(normalized, DataFrame):
-        return Series({col: _ratio(normalized[col]) for col in normalized.columns})
-    return _ratio(normalized)
 
 
 @overload
@@ -646,18 +650,100 @@ def profit_factor(returns: DataFrame, prepare_returns: bool = True) -> Series: .
 def profit_factor(
     returns: Series | DataFrame, prepare_returns: bool = True
 ) -> float | Series:
+    """
+    Calculate the Profit Factor (Total Wins / Total Losses).
+
+    Measures the ratio of gross profits to gross losses. A value > 1 indicates
+    profitability, > 2 is considered good, > 3 is excellent.
+
+    Parameters
+    ----------
+    returns : Series or DataFrame
+        Returns data
+    prepare_returns : bool, default True
+        Whether to normalize returns before calculation
+
+    Returns
+    -------
+    float or Series
+        Profit factor (sum of wins / abs(sum of losses))
+
+    Examples
+    --------
+    >>> returns = pd.Series([0.10, -0.05, 0.03, -0.02, 0.04])
+    >>> profit_factor(returns)  # (0.17 / 0.07) = 2.43
+    2.43
+    """
     normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
 
     def _ratio(series: Series) -> float:
         gains = series[series >= 0].sum()
-        losses = series[series < 0].sum()
+        losses = abs(series[series < 0].sum())
         if losses == 0:
             return float("inf") if gains > 0 else 0.0
-        return float(abs(gains / losses))
+        return float(gains / losses)
 
     if isinstance(normalized, DataFrame):
         return Series({col: _ratio(normalized[col]) for col in normalized.columns})
     return _ratio(normalized)
+
+
+def profit_ratio(
+    returns: Series | DataFrame, prepare_returns: bool = True
+) -> float | Series:
+    """
+    Alias for profit_factor. See profit_factor for documentation.
+
+    Note: The term 'profit ratio' is often used interchangeably with
+    'profit factor' in trading literature.
+    """
+    return profit_factor(returns, prepare_returns)
+
+
+@overload
+def expectancy(returns: Series, prepare_returns: bool = True) -> float: ...
+@overload
+def expectancy(returns: DataFrame, prepare_returns: bool = True) -> Series: ...
+def expectancy(
+    returns: Series | DataFrame, prepare_returns: bool = True
+) -> float | Series:
+    """
+    Calculate the Expectancy (expected value per trade).
+
+    Expectancy = (Win Rate × Avg Win) - (Loss Rate × Avg Loss)
+
+    Parameters
+    ----------
+    returns : Series or DataFrame
+        Returns data
+    prepare_returns : bool, default True
+        Whether to normalize returns before calculation
+
+    Returns
+    -------
+    float or Series
+        Expected return per trade
+    """
+    normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
+
+    def _expectancy(series: Series) -> float:
+        if len(series) == 0:
+            return 0.0
+
+        wins = series[series > 0]
+        losses = series[series < 0]
+
+        win_rate = len(wins) / len(series) if len(series) > 0 else 0
+        loss_rate = len(losses) / len(series) if len(series) > 0 else 0
+
+        avg_win = wins.mean() if len(wins) > 0 else 0
+        avg_loss = abs(losses.mean()) if len(losses) > 0 else 0
+
+        return float((win_rate * avg_win) - (loss_rate * avg_loss))
+
+    if isinstance(normalized, DataFrame):
+        return Series({col: _expectancy(normalized[col]) for col in normalized.columns})
+    return _expectancy(normalized)
 
 
 @overload

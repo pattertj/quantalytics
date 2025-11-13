@@ -215,3 +215,18 @@ def test_profit_and_cpc_metrics(sample_returns):
     assert isinstance(cpc, float)
     df = pd.DataFrame({"a": sample_returns, "b": sample_returns * -1})
     assert isinstance(metrics.profit_ratio(df), pd.Series)
+
+
+def test_expectancy_series_and_dataframe(sample_returns):
+    wins = sample_returns[sample_returns > 0]
+    losses = sample_returns[sample_returns < 0]
+    win_rate = len(wins) / len(sample_returns)
+    loss_rate = len(losses) / len(sample_returns)
+    avg_win = wins.mean()
+    avg_loss = abs(losses.mean())
+    expected = (win_rate * avg_win) - (loss_rate * avg_loss)
+    assert metrics.expectancy(sample_returns) == pytest.approx(expected)
+    df = pd.DataFrame({"a": sample_returns, "b": sample_returns * 0.5})
+    result = metrics.expectancy(df)
+    assert isinstance(result, pd.Series)
+    assert result["a"] == pytest.approx(expected)
