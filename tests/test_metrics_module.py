@@ -189,3 +189,29 @@ def test_ulcer_index_calc():
     upi_value = metrics.ulcer_performance_index(series, rf=rf)
     comp = ((1 + series).prod() - 1) - rf
     assert upi_value == pytest.approx(comp / ui)
+
+
+def test_tail_payoff_profit_metrics(sample_returns):
+    tr = metrics.tail_ratio(sample_returns)
+    upper = sample_returns.quantile(0.95)
+    lower = sample_returns.quantile(0.05)
+    assert tr == pytest.approx(abs(upper / lower))
+    pr = metrics.payoff_ratio(sample_returns)
+    assert pr == pytest.approx(
+        metrics.avg_win(sample_returns) / abs(metrics.avg_loss(sample_returns))
+    )
+    df = pd.DataFrame({"a": sample_returns, "b": sample_returns * 2})
+    assert isinstance(metrics.tail_ratio(df), pd.Series)
+
+
+def test_profit_and_cpc_metrics(sample_returns):
+    pf = metrics.profit_factor(sample_returns)
+    gains = sample_returns[sample_returns >= 0].sum()
+    losses = sample_returns[sample_returns < 0].sum()
+    assert pf == pytest.approx(abs(gains / losses))
+    pr = metrics.profit_ratio(sample_returns)
+    assert isinstance(pr, float)
+    cpc = metrics.cpc_index(sample_returns)
+    assert isinstance(cpc, float)
+    df = pd.DataFrame({"a": sample_returns, "b": sample_returns * -1})
+    assert isinstance(metrics.profit_ratio(df), pd.Series)

@@ -9,7 +9,15 @@ from pandas.core.frame import DataFrame
 from pandas.core.series import Series
 from scipy.stats import norm as _norm
 
-from quantalytics.analytics.stats import cagr, comp, max_drawdown, volatility, win_rate
+from quantalytics.analytics.stats import (
+    avg_loss,
+    avg_win,
+    cagr,
+    comp,
+    max_drawdown,
+    volatility,
+    win_rate,
+)
 from quantalytics.utils import timeseries as _utils
 
 
@@ -560,3 +568,113 @@ def conditional_drawdown_at_risk(
     return conditional_value_at_risk(
         returns=dd, sigma=sigma, confidence=confidence, prepare_returns=prepare_returns
     )
+
+
+@overload
+def tail_ratio(
+    returns: Series, cutoff: float = 0.95, prepare_returns: bool = True
+) -> float: ...
+@overload
+def tail_ratio(
+    returns: DataFrame, cutoff: float = 0.95, prepare_returns: bool = True
+) -> Series: ...
+def tail_ratio(
+    returns: Series | DataFrame, cutoff: float = 0.95, prepare_returns: bool = True
+) -> float | Series:
+    normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
+
+    def _ratio(series: Series) -> float:
+        upper = series.quantile(cutoff)
+        lower = series.quantile(1 - cutoff)
+        return float(abs(upper / lower if lower != 0 else float("inf")))
+
+    if isinstance(normalized, DataFrame):
+        return Series({col: _ratio(normalized[col]) for col in normalized.columns})
+    return _ratio(normalized)
+
+
+@overload
+def payoff_ratio(returns: Series, prepare_returns: bool = True) -> float: ...
+@overload
+def payoff_ratio(returns: DataFrame, prepare_returns: bool = True) -> Series: ...
+def payoff_ratio(
+    returns: Series | DataFrame, prepare_returns: bool = True
+) -> float | Series:
+    normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
+
+    def _ratio(series: Series) -> float:
+        win = avg_win(series)
+        loss = abs(avg_loss(series))
+        return float(win / loss) if loss != 0 else float("inf")
+
+    if isinstance(normalized, DataFrame):
+        return Series({col: _ratio(normalized[col]) for col in normalized.columns})
+    return _ratio(normalized)
+
+
+def win_loss_ratio(
+    returns: Series | DataFrame, prepare_returns: bool = True
+) -> float | Series:
+    return payoff_ratio(returns, prepare_returns)
+
+
+@overload
+def profit_ratio(returns: Series, prepare_returns: bool = True) -> float: ...
+@overload
+def profit_ratio(returns: DataFrame, prepare_returns: bool = True) -> Series: ...
+def profit_ratio(
+    returns: Series | DataFrame, prepare_returns: bool = True
+) -> float | Series:
+    normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
+
+    def _ratio(series: Series) -> float:
+        wins = series[series >= 0]
+        losses = series[series < 0]
+        win_ratio = abs(wins.mean()) if wins.size else 0.0
+        loss_ratio = abs(losses.mean()) if losses.size else 0.0
+        return float(win_ratio / loss_ratio) if loss_ratio != 0 else 0.0
+
+    if isinstance(normalized, DataFrame):
+        return Series({col: _ratio(normalized[col]) for col in normalized.columns})
+    return _ratio(normalized)
+
+
+@overload
+def profit_factor(returns: Series, prepare_returns: bool = True) -> float: ...
+@overload
+def profit_factor(returns: DataFrame, prepare_returns: bool = True) -> Series: ...
+def profit_factor(
+    returns: Series | DataFrame, prepare_returns: bool = True
+) -> float | Series:
+    normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
+
+    def _ratio(series: Series) -> float:
+        gains = series[series >= 0].sum()
+        losses = series[series < 0].sum()
+        if losses == 0:
+            return float("inf") if gains > 0 else 0.0
+        return float(abs(gains / losses))
+
+    if isinstance(normalized, DataFrame):
+        return Series({col: _ratio(normalized[col]) for col in normalized.columns})
+    return _ratio(normalized)
+
+
+@overload
+def cpc_index(returns: Series, prepare_returns: bool = True) -> float: ...
+@overload
+def cpc_index(returns: DataFrame, prepare_returns: bool = True) -> Series: ...
+def cpc_index(
+    returns: Series | DataFrame, prepare_returns: bool = True
+) -> float | Series:
+    normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
+
+    def _index(series: Series) -> float:
+        pf = profit_factor(series)
+        wr = win_rate(series, prepare_returns=False)
+        wl = win_loss_ratio(series, prepare_returns=False)
+        return float(pf * wr * wl)
+
+    if isinstance(normalized, DataFrame):
+        return Series({col: _index(normalized[col]) for col in normalized.columns})
+    return _index(normalized)
