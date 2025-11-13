@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "quantalytics"
-version = "0.1.6"
+version = "0.1.7"
 description = "Modern quantitative analysis library for portfolio analytics, charts, and reports"
 readme = "README.md"
 keywords = [

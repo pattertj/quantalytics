@@ -117,21 +117,23 @@ def sortino(
 
 @overload
 def calmar(
-    returns: Series, prepare_returns: bool = True, periods: int = 365
+    returns: Series, prepare_returns: bool = True, periods: int | None = None
 ) -> float: ...
 @overload
 def calmar(
-    returns: DataFrame, prepare_returns: bool = True, periods: int = 365
+    returns: DataFrame, prepare_returns: bool = True, periods: int | None = None
 ) -> Series: ...
 def calmar(
-    returns: Series | DataFrame, prepare_returns: bool = True, periods: int = 365
+    returns: Series | DataFrame,
+    prepare_returns: bool = True,
+    periods: int | None = None,
 ) -> float | Series:
     """Calculates the calmar ratio (CAGR% / MaxDD%)"""
     if prepare_returns:
         returns = _utils.normalize_returns(data=returns)
-    cagr_ratio = cagr(returns=returns, periods=periods)
+    cagr_pct = cagr(returns=returns, periods=periods)
     max_dd = max_drawdown(returns=returns)
-    return cagr_ratio / abs(max_dd)
+    return cagr_pct / abs(max_dd)
 
 
 def autocorr_penalty(returns: Series | DataFrame, prepare_returns=False) -> float:
