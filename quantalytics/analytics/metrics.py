@@ -306,11 +306,8 @@ def serenity_index(
     normalized: Series | DataFrame = (
         _utils.normalize_returns(data=returns) if prepare_returns else returns
     )
-    dd: Series | DataFrame = to_drawdown_series(
-        returns=normalized, prepare_returns=False
-    )
 
-    pitfall = -cvar(returns=dd) / normalized.std()
+    pitfall = -cdar(returns=normalized, prepare_returns=False) / normalized.std()
     ulcer = ulcer_index(returns=normalized, prepare_returns=False)
     cagr_pct = cagr(returns=normalized, rf=rf)
 
@@ -473,6 +470,20 @@ def conditional_value_at_risk(
     return threshold if _np.isnan(mean_tail) else float(mean_tail)
 
 
+@overload
+def cvar(
+    returns: Series,
+    sigma: float = 1,
+    confidence: float = 0.95,
+    prepare_returns: bool = True,
+) -> float: ...
+@overload
+def cvar(
+    returns: DataFrame,
+    sigma: float = 1,
+    confidence: float = 0.95,
+    prepare_returns: bool = True,
+) -> Series: ...
 def cvar(
     returns: Series | DataFrame,
     sigma: float = 1,
@@ -483,4 +494,67 @@ def cvar(
 
     return conditional_value_at_risk(
         returns, sigma=sigma, confidence=confidence, prepare_returns=prepare_returns
+    )
+
+
+@overload
+def cdar(
+    returns: Series,
+    sigma: float = 1,
+    confidence: float = 0.95,
+    prepare_returns: bool = True,
+) -> float: ...
+@overload
+def cdar(
+    returns: DataFrame,
+    sigma: float = 1,
+    confidence: float = 0.95,
+    prepare_returns: bool = True,
+) -> Series: ...
+def cdar(
+    returns: Series | DataFrame,
+    sigma: float = 1,
+    confidence: float = 0.95,
+    prepare_returns: bool = True,
+) -> float | Series:
+    """Alias for conditional_drawdown_at_risk."""
+
+    return conditional_drawdown_at_risk(
+        returns=returns,
+        sigma=sigma,
+        confidence=confidence,
+        prepare_returns=prepare_returns,
+    )
+
+
+@overload
+def conditional_drawdown_at_risk(
+    returns: Series,
+    sigma: float = 1,
+    confidence: float = 0.95,
+    prepare_returns: bool = True,
+) -> float: ...
+@overload
+def conditional_drawdown_at_risk(
+    returns: DataFrame,
+    sigma: float = 1,
+    confidence: float = 0.95,
+    prepare_returns: bool = True,
+) -> Series: ...
+def conditional_drawdown_at_risk(
+    returns: Series | DataFrame,
+    sigma: float = 1,
+    confidence: float = 0.95,
+    prepare_returns: bool = True,
+) -> float | Series:
+    """
+    CDaR: CVaR of drawdowns
+    In the worst drawdowns, I'm down 21.7% from my peak
+    """
+
+    normalized = _utils.normalize_returns(returns) if prepare_returns else returns
+    dd = to_drawdown_series(returns=normalized, prepare_returns=False)
+
+    return conditional_value_at_risk(
+        returns=dd, sigma=sigma, confidence=confidence, prepare_returns=prepare_returns
     )
