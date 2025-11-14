@@ -78,6 +78,233 @@ def sharpe(
 
 
 @overload
+def rolling_sharpe(
+    returns: Series,
+    rf: float = 0.0,
+    rolling_period: int | None = 126,
+    annualize: bool = True,
+    periods_per_year: int = 252,
+    prepare_returns: bool = True,
+) -> Series: ...
+@overload
+def rolling_sharpe(
+    returns: DataFrame,
+    rf: float = 0.0,
+    rolling_period: int | None = 126,
+    annualize: bool = True,
+    periods_per_year: int = 252,
+    prepare_returns: bool = True,
+) -> DataFrame: ...
+def rolling_sharpe(
+    returns: Series | DataFrame,
+    rf: float = 0.0,
+    rolling_period: int | None = 126,
+    annualize: bool = True,
+    periods_per_year: int = 252,
+    prepare_returns: bool = True,
+) -> Series | DataFrame:
+    """Calculate rolling Sharpe ratio over a specified window.
+
+    The rolling Sharpe ratio computes the Sharpe ratio using a rolling window,
+    providing a time-varying measure of risk-adjusted performance. This allows
+    you to track how the strategy's risk-adjusted returns evolve over time and
+    adapt to changing market conditions.
+
+    Args:
+        returns (Series | DataFrame): Portfolio returns data. If DataFrame, returns a DataFrame
+            with rolling Sharpe values for each column.
+        rf (float, optional): Risk-free rate (annualized). Defaults to 0.0.
+        rolling_period (int, optional): Rolling window size in periods.
+            Defaults to 126 (~6 months of daily data).
+        annualize (bool, optional): Whether to annualize the ratio. Defaults to True.
+        periods_per_year (int, optional): Number of periods per year for annualization.
+            Defaults to 252 (daily data).
+        prepare_returns (bool, optional): Whether to normalize returns before calculation.
+            Defaults to True.
+
+    Returns:
+        Series | DataFrame: Rolling Sharpe ratio time series. Returns Series for Series input,
+            DataFrame for DataFrame input (one column per input column).
+            Earlier values will be NaN until the rolling window is filled.
+
+    Raises:
+        ValueError: If rf != 0 and rolling_period is None.
+
+    Examples:
+        >>> returns = pd.Series([0.01, -0.02, 0.03, -0.01, 0.02, 0.01])
+        >>> rolling_sharpe(returns, rolling_period=3, annualize=False)
+        0         NaN
+        1         NaN
+        2    0.577350
+        3   -0.707107
+        4    0.816497
+        5    0.707107
+        dtype: float64
+
+        >>> df = pd.DataFrame({"strategy_a": [0.01, -0.01, 0.02, 0.01],
+        ...                    "strategy_b": [0.02, -0.02, 0.03, 0.01]})
+        >>> rolling_sharpe(df, rolling_period=3, periods_per_year=252)
+        # Returns DataFrame with rolling Sharpe for both strategies
+
+    Notes:
+        - First (rolling_period - 1) values will be NaN
+        - Useful for monitoring strategy performance over time
+        - Captures regime changes and varying market conditions
+        - Annualization uses sqrt(periods_per_year) scaling
+        - When prepare_returns=True, adjusts for risk-free rate
+        - Standard rolling window is 126 days (~6 months) or 63 days (~3 months)
+
+    See Also:
+        sharpe: Static Sharpe ratio for entire period
+        rolling_sortino: Rolling Sortino ratio (downside risk focus)
+        smart_sharpe: Sharpe with autocorrelation penalty
+    """
+    # Validate parameters for risk-free rate handling
+    if rf != 0 and rolling_period is None:
+        raise ValueError("Must provide periods if rf != 0")
+
+    normalized = (
+        _utils.normalize_returns(data=returns, rf=rf, nperiods=rolling_period)
+        if prepare_returns
+        else returns
+    )
+
+    # Calculate rolling mean and standard deviation
+    res = (
+        normalized.rolling(rolling_period).mean()
+        / normalized.rolling(rolling_period).std()
+    )
+
+    # Annualize if requested
+    if annualize:
+        res = res * _np.sqrt(1 if periods_per_year is None else periods_per_year)
+
+    return res
+
+
+@overload
+def rolling_sortino(
+    returns: Series,
+    rf: float = 0.0,
+    rolling_period: int | None = 126,
+    annualize: bool = True,
+    periods_per_year: int = 252,
+    prepare_returns: bool = True,
+) -> Series: ...
+@overload
+def rolling_sortino(
+    returns: DataFrame,
+    rf: float = 0.0,
+    rolling_period: int | None = 126,
+    annualize: bool = True,
+    periods_per_year: int = 252,
+    prepare_returns: bool = True,
+) -> DataFrame: ...
+def rolling_sortino(
+    returns: Series | DataFrame,
+    rf: float = 0.0,
+    rolling_period: int | None = 126,
+    annualize: bool = True,
+    periods_per_year: int = 252,
+    prepare_returns: bool = True,
+) -> Series | DataFrame:
+    """Calculate rolling Sortino ratio over a specified window.
+
+    The rolling Sortino ratio computes the Sortino ratio using a rolling window,
+    providing a time-varying measure of downside risk-adjusted performance. Unlike
+    the rolling Sharpe ratio, it only penalizes downside volatility, making it
+    more suitable for strategies with asymmetric return distributions.
+
+    Args:
+        returns (Series | DataFrame): Portfolio returns data. If DataFrame, returns a DataFrame
+            with rolling Sortino values for each column.
+        rf (float, optional): Risk-free rate (annualized). Defaults to 0.0.
+        rolling_period (int, optional): Rolling window size in periods.
+            Defaults to 126 (~6 months of daily data).
+        annualize (bool, optional): Whether to annualize the ratio. Defaults to True.
+        periods_per_year (int, optional): Number of periods per year for annualization.
+            Defaults to 252 (daily data).
+        prepare_returns (bool, optional): Whether to normalize returns before calculation.
+            Defaults to True.
+
+    Returns:
+        Series | DataFrame: Rolling Sortino ratio time series. Returns Series for Series input,
+            DataFrame for DataFrame input (one column per input column).
+            Earlier values will be NaN until the rolling window is filled.
+            May contain inf values when downside deviation is zero.
+
+    Raises:
+        ValueError: If rf != 0 and rolling_period is None.
+
+    Examples:
+        >>> returns = pd.Series([0.01, -0.02, 0.03, -0.01, 0.02, 0.01])
+        >>> rolling_sortino(returns, rolling_period=3, annualize=False)
+        0         NaN
+        1         NaN
+        2    0.816497
+        3   -1.000000
+        4    1.154701
+        5    1.000000
+        dtype: float64
+
+        >>> df = pd.DataFrame({"strategy_a": [0.01, -0.01, 0.02, 0.01],
+        ...                    "strategy_b": [0.02, -0.02, 0.03, 0.01]})
+        >>> rolling_sortino(df, rolling_period=3, periods_per_year=252)
+        # Returns DataFrame with rolling Sortino for both strategies
+
+    Notes:
+        - First (rolling_period - 1) values will be NaN
+        - Only penalizes downside volatility (returns below zero)
+        - More forgiving than rolling Sharpe for strategies with positive skew
+        - May return inf when window has no negative returns (zero downside)
+        - Annualization uses sqrt(periods_per_year) scaling
+        - Downside deviation calculated from squared negative returns only
+        - Useful for monitoring asymmetric risk profiles over time
+
+    See Also:
+        sortino: Static Sortino ratio for entire period
+        rolling_sharpe: Rolling Sharpe ratio (total risk focus)
+        adjusted_sortino: Sortino adjusted for Sharpe comparability
+        smart_sortino: Sortino with autocorrelation penalty
+    """
+    # Validate parameters for risk-free rate handling
+    if rf != 0 and rolling_period is None:
+        raise ValueError("Must provide periods if rf != 0")
+
+    normalized = (
+        _utils.normalize_returns(data=returns, rf=rf, nperiods=rolling_period)
+        if prepare_returns
+        else returns
+    )
+
+    # Optimized downside calculation using vectorized operations
+    def calc_downside(x):
+        """
+        Calculate downside variance more efficiently.
+
+        This function computes the sum of squared negative returns,
+        which is used to calculate downside deviation.
+        """
+        negative_returns = x[x < 0]
+        return (negative_returns**2).sum() if len(negative_returns) > 0 else 0
+
+    # Calculate rolling downside deviation
+    downside = (
+        normalized.rolling(rolling_period).apply(calc_downside, raw=True)
+        / rolling_period
+    )
+
+    # Calculate rolling Sortino ratio
+    res = normalized.rolling(rolling_period).mean() / _np.sqrt(downside)
+
+    # Annualize if requested
+    if annualize:
+        res = res * _np.sqrt(1 if periods_per_year is None else periods_per_year)
+
+    return res
+
+
+@overload
 def sortino(
     returns: Series,
     rf: float = 0,

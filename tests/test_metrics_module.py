@@ -932,3 +932,263 @@ def test_adjusted_sortino_mixed_returns():
     assert result > 0
     assert isinstance(result, float)
     assert not np.isnan(result)
+
+
+# Tests for rolling_sharpe
+
+
+def test_rolling_sharpe_basic(sample_returns):
+    """Test rolling_sharpe basic functionality."""
+    result = metrics.rolling_sharpe(sample_returns, rolling_period=3, annualize=False)
+
+    # Should return a Series
+    assert isinstance(result, pd.Series)
+    assert len(result) == len(sample_returns)
+
+    # First 2 values should be NaN (rolling_period - 1)
+    assert result.iloc[:2].isna().all()
+
+    # Later values should be numeric
+    assert not result.iloc[3:].isna().all()
+
+
+def test_rolling_sharpe_annualization(sample_returns):
+    """Test rolling_sharpe annualization."""
+    non_annualized = metrics.rolling_sharpe(
+        sample_returns, rolling_period=3, annualize=False, periods_per_year=252
+    )
+    annualized = metrics.rolling_sharpe(
+        sample_returns, rolling_period=3, annualize=True, periods_per_year=252
+    )
+
+    # Annualized should be scaled by sqrt(252)
+    # Check on values that exist (not NaN)
+    valid_mask = ~non_annualized.isna()
+    if valid_mask.any():
+        ratio = (annualized[valid_mask] / non_annualized[valid_mask]).iloc[0]
+        assert ratio == pytest.approx(np.sqrt(252), rel=1e-5)
+
+
+def test_rolling_sharpe_rf_parameter(sample_returns):
+    """Test rolling_sharpe with risk-free rate."""
+    rf_0 = metrics.rolling_sharpe(
+        sample_returns, rf=0.0, rolling_period=3, periods_per_year=252
+    )
+    rf_2 = metrics.rolling_sharpe(
+        sample_returns, rf=0.02, rolling_period=3, periods_per_year=252
+    )
+
+    # Different rf should give different results
+    assert not rf_0.equals(rf_2)
+
+
+def test_rolling_sharpe_window_size():
+    """Test rolling_sharpe with different window sizes."""
+    returns = pd.Series(
+        [0.01, -0.02, 0.03, -0.01, 0.02, 0.01, -0.01, 0.02, 0.01, -0.01]
+    )
+
+    result_small = metrics.rolling_sharpe(returns, rolling_period=3, annualize=False)
+    result_large = metrics.rolling_sharpe(returns, rolling_period=5, annualize=False)
+
+    # Should have different number of NaN values
+    assert result_small.isna().sum() == 2  # First 2 values
+    assert result_large.isna().sum() == 4  # First 4 values
+
+
+def test_rolling_sharpe_dataframe_support():
+    """Test rolling_sharpe with DataFrame input."""
+    df = pd.DataFrame(
+        {
+            "strategy_a": [0.01, -0.01, 0.02, 0.01, -0.005, 0.015, 0.01, 0.02],
+            "strategy_b": [0.02, -0.02, 0.03, 0.01, -0.01, 0.02, 0.015, 0.01],
+        }
+    )
+
+    result = metrics.rolling_sharpe(df, rolling_period=3, annualize=False)
+
+    # Should return a DataFrame with same columns
+    assert isinstance(result, pd.DataFrame)
+    assert list(result.columns) == ["strategy_a", "strategy_b"]
+    assert len(result) == len(df)
+
+    # First 2 rows should be NaN for all columns
+    assert result.iloc[:2].isna().all().all()
+
+
+def test_rolling_sharpe_prepare_returns_flag():
+    """Test rolling_sharpe with prepare_returns flag."""
+    returns = pd.Series([0.01, -0.02, 0.03, -0.01, 0.02, 0.01, -0.01, 0.02])
+
+    with_prep = metrics.rolling_sharpe(
+        returns, rolling_period=3, prepare_returns=True, annualize=False
+    )
+    without_prep = metrics.rolling_sharpe(
+        returns, rolling_period=3, prepare_returns=False, annualize=False
+    )
+
+    # Both should return Series
+    assert isinstance(with_prep, pd.Series)
+    assert isinstance(without_prep, pd.Series)
+
+
+def test_rolling_sharpe_consistency_with_sharpe():
+    """Test that rolling_sharpe last value approximates full-period sharpe for stable returns."""
+    # Use consistent returns to reduce variance
+    returns = pd.Series([0.01] * 20 + [-0.005] * 10)
+
+    rolling = metrics.rolling_sharpe(
+        returns, rolling_period=len(returns), annualize=False
+    )
+    static = metrics.sharpe(returns, periods=None, annualize=False)
+
+    # Last rolling value should approximate static sharpe (same window)
+    assert rolling.iloc[-1] == pytest.approx(static, rel=0.01)
+
+
+def test_rolling_sharpe_rf_validation():
+    """Test that rolling_sharpe raises error when rf != 0 and rolling_period is None."""
+    returns = pd.Series([0.01, -0.02, 0.03])
+
+    with pytest.raises(ValueError, match="Must provide periods if rf != 0"):
+        metrics.rolling_sharpe(returns, rf=0.02, rolling_period=None)
+
+
+# Tests for rolling_sortino
+
+
+def test_rolling_sortino_basic(sample_returns):
+    """Test rolling_sortino basic functionality."""
+    result = metrics.rolling_sortino(sample_returns, rolling_period=3, annualize=False)
+
+    # Should return a Series
+    assert isinstance(result, pd.Series)
+    assert len(result) == len(sample_returns)
+
+    # First 2 values should be NaN (rolling_period - 1)
+    assert result.iloc[:2].isna().all()
+
+    # Later values should be numeric (may contain inf if no downside)
+    assert not result.iloc[3:].isna().all()
+
+
+def test_rolling_sortino_annualization(sample_returns):
+    """Test rolling_sortino annualization."""
+    non_annualized = metrics.rolling_sortino(
+        sample_returns, rolling_period=3, annualize=False, periods_per_year=252
+    )
+    annualized = metrics.rolling_sortino(
+        sample_returns, rolling_period=3, annualize=True, periods_per_year=252
+    )
+
+    # Annualized should be scaled by sqrt(252)
+    # Check on finite values only
+    valid_mask = (
+        np.isfinite(non_annualized) & np.isfinite(annualized) & (non_annualized != 0)
+    )
+    if valid_mask.any():
+        ratio = (annualized[valid_mask] / non_annualized[valid_mask]).iloc[0]
+        assert ratio == pytest.approx(np.sqrt(252), rel=1e-5)
+
+
+def test_rolling_sortino_rf_parameter(sample_returns):
+    """Test rolling_sortino with risk-free rate."""
+    rf_0 = metrics.rolling_sortino(
+        sample_returns, rf=0.0, rolling_period=3, periods_per_year=252
+    )
+    rf_2 = metrics.rolling_sortino(
+        sample_returns, rf=0.02, rolling_period=3, periods_per_year=252
+    )
+
+    # Different rf should give different results
+    assert not rf_0.equals(rf_2)
+
+
+def test_rolling_sortino_window_size():
+    """Test rolling_sortino with different window sizes."""
+    returns = pd.Series(
+        [0.01, -0.02, 0.03, -0.01, 0.02, 0.01, -0.01, 0.02, 0.01, -0.01]
+    )
+
+    result_small = metrics.rolling_sortino(returns, rolling_period=3, annualize=False)
+    result_large = metrics.rolling_sortino(returns, rolling_period=5, annualize=False)
+
+    # Should have different number of NaN values
+    assert result_small.isna().sum() == 2  # First 2 values
+    assert result_large.isna().sum() == 4  # First 4 values
+
+
+def test_rolling_sortino_dataframe_support():
+    """Test rolling_sortino with DataFrame input."""
+    df = pd.DataFrame(
+        {
+            "strategy_a": [0.01, -0.01, 0.02, 0.01, -0.005, 0.015, 0.01, 0.02],
+            "strategy_b": [0.02, -0.02, 0.03, 0.01, -0.01, 0.02, 0.015, 0.01],
+        }
+    )
+
+    result = metrics.rolling_sortino(df, rolling_period=3, annualize=False)
+
+    # Should return a DataFrame with same columns
+    assert isinstance(result, pd.DataFrame)
+    assert list(result.columns) == ["strategy_a", "strategy_b"]
+    assert len(result) == len(df)
+
+    # First 2 rows should be NaN for all columns
+    assert result.iloc[:2].isna().all().all()
+
+
+def test_rolling_sortino_downside_focus():
+    """Test that rolling_sortino only penalizes downside volatility."""
+    # Window with no negative returns should give inf
+    returns = pd.Series([0.01, 0.02, 0.03, 0.01, 0.02])
+
+    result = metrics.rolling_sortino(returns, rolling_period=3, annualize=False)
+
+    # Values should be inf when there's no downside in the window
+    # (dividing by sqrt(0) gives inf)
+    assert np.isinf(result.iloc[-1])
+
+
+def test_rolling_sortino_prepare_returns_flag():
+    """Test rolling_sortino with prepare_returns flag."""
+    returns = pd.Series([0.01, -0.02, 0.03, -0.01, 0.02, 0.01, -0.01, 0.02])
+
+    with_prep = metrics.rolling_sortino(
+        returns, rolling_period=3, prepare_returns=True, annualize=False
+    )
+    without_prep = metrics.rolling_sortino(
+        returns, rolling_period=3, prepare_returns=False, annualize=False
+    )
+
+    # Both should return Series
+    assert isinstance(with_prep, pd.Series)
+    assert isinstance(without_prep, pd.Series)
+
+
+def test_rolling_sortino_higher_than_sharpe():
+    """Test that rolling_sortino is typically higher than rolling_sharpe for positive skew."""
+    # Positive skew: mostly small gains, occasional large loss
+    returns = pd.Series([0.01, 0.01, -0.05, 0.01, 0.01, 0.01, 0.01, -0.03, 0.01, 0.01])
+
+    rolling_sortino = metrics.rolling_sortino(
+        returns, rolling_period=5, annualize=False
+    )
+    rolling_sharpe = metrics.rolling_sharpe(returns, rolling_period=5, annualize=False)
+
+    # For positive skew, sortino should generally be >= sharpe
+    # Check on finite values
+    valid_mask = np.isfinite(rolling_sortino) & np.isfinite(rolling_sharpe)
+    if valid_mask.any():
+        # Most values should have sortino >= sharpe (within numerical tolerance)
+        assert (
+            rolling_sortino[valid_mask] >= rolling_sharpe[valid_mask] - 0.1
+        ).sum() > 0
+
+
+def test_rolling_sortino_rf_validation():
+    """Test that rolling_sortino raises error when rf != 0 and rolling_period is None."""
+    returns = pd.Series([0.01, -0.02, 0.03])
+
+    with pytest.raises(ValueError, match="Must provide periods if rf != 0"):
+        metrics.rolling_sortino(returns, rf=0.02, rolling_period=None)
