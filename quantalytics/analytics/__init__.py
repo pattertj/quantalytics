@@ -1,6 +1,7 @@
 """Aggregate analytics helpers so downstream consumers can import from `quantalytics.analytics`."""
 
 from .benchmarks import (
+    benchmark_correlation,
     compare,
     greeks,
     information_ratio,
@@ -135,6 +136,7 @@ __all__: list[str] = [
     "value_at_risk",
     "var",
     "win_loss_ratio",
+    "benchmark_correlation",
     "r_squared",
     "r2",
     "information_ratio",

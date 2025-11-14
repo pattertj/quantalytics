@@ -17,6 +17,86 @@ from quantalytics.utils import timeseries as _utils
 
 
 @overload
+def benchmark_correlation(
+    returns: Series,
+    benchmark: Series | DataFrame,
+    prepare_returns: bool = True,
+) -> float: ...
+@overload
+def benchmark_correlation(
+    returns: DataFrame,
+    benchmark: Series | DataFrame,
+    prepare_returns: bool = True,
+) -> Series: ...
+def benchmark_correlation(
+    returns: Series | DataFrame,
+    benchmark: Series | DataFrame,
+    prepare_returns: bool = True,
+) -> float | Series:
+    """Calculate the correlation between returns and a benchmark.
+
+    Measures the linear relationship between portfolio returns and benchmark returns,
+    with values ranging from -1 (perfect negative correlation) to +1 (perfect positive
+    correlation). A correlation of 0 indicates no linear relationship.
+
+    Args:
+        returns (Series | DataFrame): Portfolio returns data. If DataFrame, returns a Series
+            with correlation values for each column.
+        benchmark (Series | DataFrame): Benchmark returns data for comparison.
+        prepare_returns (bool, optional): Whether to normalize returns before calculation.
+            Defaults to True.
+
+    Returns:
+        float | Series: Correlation value(s). Returns float for Series input,
+            Series for DataFrame input (one correlation per column).
+
+    Examples:
+        >>> returns = pd.Series([0.01, 0.02, -0.01, 0.03, 0.01])
+        >>> benchmark = pd.Series([0.008, 0.015, -0.005, 0.025, 0.008])
+        >>> benchmark_correlation(returns, benchmark)
+        0.95  # High positive correlation
+
+        >>> df = pd.DataFrame({"strategy_a": [0.01, -0.01, 0.02], "strategy_b": [0.02, -0.02, 0.03]})
+        >>> benchmark = pd.Series([0.01, -0.005, 0.015])
+        >>> benchmark_correlation(df, benchmark)
+        strategy_a    0.98
+        strategy_b    0.99
+        dtype: float64
+
+    Notes:
+        - Correlation measures strength and direction of linear relationship
+        - High correlation (near 1) suggests returns move together with benchmark
+        - Low correlation (near 0) suggests returns are independent of benchmark
+        - Negative correlation (near -1) suggests returns move opposite to benchmark
+        - Use with beta to understand both correlation and sensitivity
+        - Correlation doesn't imply causation
+
+    See Also:
+        greeks: Calculate alpha and beta relative to benchmark
+        r_squared: Proportion of variance explained by benchmark
+        information_ratio: Risk-adjusted return relative to benchmark
+    """
+    normalized = _utils.normalize_returns(returns) if prepare_returns else returns
+
+    period: DatetimeIndex = (
+        normalized.index
+        if isinstance(normalized.index, DatetimeIndex)
+        else DatetimeIndex(normalized.index)
+    )
+
+    prepared_benchmark = _utils._prepare_benchmark(benchmark, period)
+
+    # _prepare_benchmark can return DataFrame, but we need Series for correlation
+    if isinstance(prepared_benchmark, DataFrame):
+        prepared_benchmark = prepared_benchmark.iloc[:, 0]
+
+    if isinstance(returns, Series):
+        return float(normalized.corr(prepared_benchmark))
+    else:
+        return normalized.corrwith(prepared_benchmark)
+
+
+@overload
 def treynor_ratio(
     returns: Series,
     benchmark: Series | DataFrame,
@@ -467,6 +547,7 @@ def compare(
 
 
 __all__: list[str] = [
+    "benchmark_correlation",
     "treynor_ratio",
     "r_squared",
     "r2",
