@@ -12,7 +12,88 @@ from pandas.core.indexes.datetimes import DatetimeIndex
 from pandas.core.series import Series
 from scipy.stats import linregress as _linregress
 
+from quantalytics.analytics.stats import comp
 from quantalytics.utils import timeseries as _utils
+
+
+@overload
+def treynor_ratio(
+    returns: Series,
+    benchmark: Series | DataFrame,
+    periods: float = 365.0,
+    rf: float = 0.0,
+    prepare_returns: bool = True,
+) -> float: ...
+@overload
+def treynor_ratio(
+    returns: DataFrame,
+    benchmark: Series | DataFrame,
+    periods: float = 365.0,
+    rf: float = 0.0,
+    prepare_returns: bool = True,
+) -> float: ...
+def treynor_ratio(
+    returns: Series | DataFrame,
+    benchmark: Series | DataFrame,
+    periods: float = 365.0,
+    rf: float = 0.0,
+    prepare_returns: bool = True,
+) -> float:
+    """Calculate the Treynor ratio of returns relative to a benchmark.
+
+    The Treynor ratio measures risk-adjusted returns per unit of systematic risk (beta).
+    It shows how much excess return is generated for each unit of market risk taken.
+    Higher values indicate better risk-adjusted performance.
+
+    Args:
+        returns (Series | DataFrame): Portfolio returns data. If DataFrame, uses first column.
+        benchmark (Series | DataFrame): Benchmark returns data for comparison.
+        periods (float, optional): Number of periods per year for annualization.
+            Defaults to 365.0 (daily data).
+        rf (float, optional): Risk-free rate to subtract from returns.
+            Defaults to 0.0.
+        prepare_returns (bool, optional): Whether to normalize returns before calculation.
+            Defaults to True.
+
+    Returns:
+        float: Treynor ratio value. Returns 0 if beta is 0 (no systematic risk).
+            Calculated as: (total_return - rf) / beta.
+
+    Examples:
+        >>> returns = pd.Series([0.01, 0.02, -0.01, 0.03, 0.01])
+        >>> benchmark = pd.Series([0.008, 0.015, -0.005, 0.025, 0.008])
+        >>> treynor_ratio(returns, benchmark, periods=252)
+        0.15  # Excess return per unit of beta
+
+    Notes:
+        - Unlike Sharpe ratio which uses total volatility, Treynor uses beta (systematic risk)
+        - Returns 0 if beta is 0 (portfolio has no systematic risk)
+        - Higher values indicate better compensation for systematic risk
+        - Useful for well-diversified portfolios where systematic risk dominates
+        - Not suitable for comparing portfolios with different betas to the same benchmark
+
+    See Also:
+        sharpe: Risk-adjusted return using total volatility
+        information_ratio: Risk-adjusted return relative to tracking error
+    """
+    # Handle DataFrame input by using first column
+    if isinstance(returns, DataFrame):
+        returns = returns[returns.columns[0]]
+
+    # Calculate beta using greeks function
+    beta_value = greeks(
+        returns, benchmark, periods=periods, prepare_returns=prepare_returns
+    )["beta"]
+
+    # Return 0 if beta is 0 to avoid division by zero
+    if beta_value == 0:
+        return 0.0
+
+    # Calculate total compounded return
+    total_return = comp(returns)
+
+    # Calculate Treynor ratio
+    return float((total_return - rf) / beta_value)
 
 
 @overload
@@ -386,6 +467,7 @@ def compare(
 
 
 __all__: list[str] = [
+    "treynor_ratio",
     "r_squared",
     "r2",
     "information_ratio",

@@ -382,3 +382,119 @@ class TestEdgeCases:
 
         result = benchmarks.r_squared(sample_returns, benchmark_df)
         assert isinstance(result, float)
+
+
+class TestTreynorRatio:
+    """Tests for treynor_ratio function."""
+
+    def test_treynor_ratio_basic(self, sample_returns, sample_benchmark):
+        """Test basic Treynor ratio calculation."""
+        result = benchmarks.treynor_ratio(sample_returns, sample_benchmark)
+        assert isinstance(result, float)
+        assert not np.isnan(result)
+
+    def test_treynor_ratio_manual_calculation(self, sample_returns, sample_benchmark):
+        """Test Treynor ratio matches manual calculation."""
+        from quantalytics.analytics.stats import comp
+
+        # Calculate components manually
+        greeks_result = benchmarks.greeks(
+            sample_returns, sample_benchmark, periods=365.0
+        )
+        beta = greeks_result["beta"]
+        total_return = comp(sample_returns)
+
+        expected = total_return / beta if beta != 0 else 0.0
+
+        result = benchmarks.treynor_ratio(sample_returns, sample_benchmark, rf=0.0)
+        assert result == pytest.approx(expected)
+
+    def test_treynor_ratio_with_rf(self, sample_returns, sample_benchmark):
+        """Test Treynor ratio with risk-free rate."""
+        from quantalytics.analytics.stats import comp
+
+        rf = 0.02
+        greeks_result = benchmarks.greeks(sample_returns, sample_benchmark)
+        beta = greeks_result["beta"]
+        total_return = comp(sample_returns)
+
+        expected = (total_return - rf) / beta if beta != 0 else 0.0
+
+        result = benchmarks.treynor_ratio(sample_returns, sample_benchmark, rf=rf)
+        assert result == pytest.approx(expected)
+
+    def test_treynor_ratio_zero_beta(self):
+        """Test Treynor ratio returns 0 when beta is 0."""
+        # Create returns with no correlation to benchmark (beta ~ 0)
+        dates = pd.date_range("2024-01-01", periods=50, freq="D")
+        np.random.seed(100)
+        returns = pd.Series(np.random.randn(50) * 0.001, index=dates)
+        # Constant benchmark (will result in beta = 0)
+        benchmark = pd.Series([0.0] * 50, index=dates)
+
+        result = benchmarks.treynor_ratio(returns, benchmark, prepare_returns=False)
+        assert result == 0.0
+
+    def test_treynor_ratio_dataframe_input(
+        self, sample_dataframe_returns, sample_benchmark
+    ):
+        """Test Treynor ratio with DataFrame input (uses first column)."""
+        result = benchmarks.treynor_ratio(sample_dataframe_returns, sample_benchmark)
+        assert isinstance(result, float)
+
+        # Should be same as using just the first column
+        first_col_result = benchmarks.treynor_ratio(
+            sample_dataframe_returns.iloc[:, 0], sample_benchmark
+        )
+        assert result == pytest.approx(first_col_result)
+
+    def test_treynor_ratio_different_periods(self, sample_returns, sample_benchmark):
+        """Test Treynor ratio with different periods parameter."""
+        result_252 = benchmarks.treynor_ratio(
+            sample_returns, sample_benchmark, periods=252
+        )
+        result_365 = benchmarks.treynor_ratio(
+            sample_returns, sample_benchmark, periods=365
+        )
+
+        # Results should be different because beta calculation uses periods
+        # but the difference should be reasonable
+        assert isinstance(result_252, float)
+        assert isinstance(result_365, float)
+
+    def test_treynor_ratio_positive_returns(self):
+        """Test Treynor ratio with positive returns."""
+        dates = pd.date_range("2024-01-01", periods=50, freq="D")
+        # Use varying returns that correlate positively with benchmark to produce non-zero beta
+        np.random.seed(42)
+        benchmark_vals = np.random.normal(0.008, 0.002, 50)
+        returns_vals = benchmark_vals * 1.2 + np.random.normal(
+            0.001, 0.001, 50
+        )  # Correlated with benchmark
+        returns = pd.Series(returns_vals, index=dates)
+        benchmark = pd.Series(benchmark_vals, index=dates)
+
+        result = benchmarks.treynor_ratio(returns, benchmark, prepare_returns=False)
+        assert result > 0  # Should be positive with positive returns on average
+
+    def test_treynor_ratio_negative_returns(self):
+        """Test Treynor ratio with negative returns."""
+        dates = pd.date_range("2024-01-01", periods=50, freq="D")
+        # Use varying returns that correlate with benchmark and are negative on average
+        np.random.seed(43)
+        benchmark_vals = np.random.normal(-0.008, 0.002, 50)
+        returns_vals = benchmark_vals * 1.2 + np.random.normal(
+            -0.001, 0.001, 50
+        )  # Correlated with benchmark
+        returns = pd.Series(returns_vals, index=dates)
+        benchmark = pd.Series(benchmark_vals, index=dates)
+
+        result = benchmarks.treynor_ratio(returns, benchmark, prepare_returns=False)
+        assert result < 0  # Should be negative with negative returns on average
+
+    def test_treynor_ratio_no_prepare_returns(self, sample_returns, sample_benchmark):
+        """Test Treynor ratio with prepare_returns=False."""
+        result = benchmarks.treynor_ratio(
+            sample_returns, sample_benchmark, prepare_returns=False
+        )
+        assert isinstance(result, float)

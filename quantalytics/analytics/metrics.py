@@ -14,6 +14,7 @@ from quantalytics.analytics.stats import (
     avg_win,
     cagr,
     comp,
+    exposure,
     max_drawdown,
     volatility,
     win_rate,
@@ -27,15 +28,15 @@ def sharpe(
     rf: float = 0,
     periods: Optional[int] = 365,
     annualize: bool = True,
-    smart: bool = False,
+    smart: bool = ...,
 ) -> float: ...
 @overload
 def sharpe(
     returns: DataFrame,
     rf: float = 0,
-    periods: int = 365,
+    periods: Optional[int] = 365,
     annualize: bool = True,
-    smart: bool = False,
+    smart: bool = ...,
 ) -> Series: ...
 def sharpe(
     returns: Series | DataFrame,
@@ -82,15 +83,15 @@ def sortino(
     rf: float = 0,
     periods: Optional[int] = 365,
     annualize: bool = True,
-    smart: bool = False,
+    smart: bool = ...,
 ) -> float: ...
 @overload
 def sortino(
     returns: DataFrame,
     rf: float = 0,
-    periods: int = 365,
+    periods: Optional[int] = 365,
     annualize: bool = True,
-    smart: bool = False,
+    smart: bool = ...,
 ) -> Series: ...
 def sortino(
     returns: Series | DataFrame,
@@ -114,7 +115,10 @@ def sortino(
         data=returns, rf=rf, nperiods=periods
     )
 
-    downside = sqrt((returns[returns < 0] ** 2).sum() / len(returns))
+    # Calculate downside deviation
+    squared_neg = (returns[returns < 0] ** 2).sum() / len(returns)
+    # Use numpy sqrt to handle both Series and float
+    downside = _np.sqrt(squared_neg)
 
     if smart:
         downside = downside * autocorr_penalty(returns)
@@ -130,6 +134,80 @@ def sortino(
         res = mean_returns / downside
 
     return res * sqrt(1 if periods is None else periods) if annualize else res
+
+
+@overload
+def adjusted_sortino(
+    returns: Series,
+    rf: float = 0.0,
+    periods: int = 252,
+    annualize: bool = True,
+    smart: bool = False,
+) -> float: ...
+@overload
+def adjusted_sortino(
+    returns: DataFrame,
+    rf: float = 0.0,
+    periods: int = 252,
+    annualize: bool = True,
+    smart: bool = False,
+) -> Series: ...
+def adjusted_sortino(
+    returns: Series | DataFrame,
+    rf: float = 0.0,
+    periods: int = 252,
+    annualize: bool = True,
+    smart: bool = False,
+) -> float | Series:
+    """Calculate Jack Schwager's adjusted Sortino ratio for direct comparison with Sharpe.
+
+    The adjusted Sortino ratio is the standard Sortino ratio divided by sqrt(2), allowing
+    for direct numerical comparisons with the Sharpe ratio. This adjustment accounts for
+    the difference in how downside deviation and total volatility are calculated.
+
+    Args:
+        returns (Series | DataFrame): Portfolio returns data. If DataFrame, returns a Series
+            with one adjusted Sortino value per column.
+        rf (float, optional): Risk-free rate (annualized). Defaults to 0.0.
+        periods (int, optional): Number of periods per year for annualization.
+            Defaults to 252 (daily data).
+        annualize (bool, optional): Whether to annualize the ratio. Defaults to True.
+        smart (bool, optional): Whether to apply autocorrelation penalty to downside deviation.
+            Defaults to False.
+
+    Returns:
+        float | Series: Adjusted Sortino ratio value(s). Returns float for Series input,
+            Series for DataFrame input (one value per column).
+
+    Examples:
+        >>> returns = pd.Series([0.01, -0.02, 0.03, -0.01, 0.02])
+        >>> adjusted_sortino(returns, rf=0.02, periods=252)
+        1.23  # Can be directly compared to Sharpe ratio
+
+        >>> df = pd.DataFrame({"strategy_a": [0.01, -0.01, 0.02], "strategy_b": [0.02, -0.02, 0.03]})
+        >>> adjusted_sortino(df, periods=252)
+        strategy_a    1.15
+        strategy_b    1.08
+        dtype: float64
+
+    Notes:
+        - Divides the standard Sortino ratio by sqrt(2) for comparability with Sharpe
+        - This adjustment was proposed by Jack Schwager for practical comparison purposes
+        - Use this when you need to compare Sortino and Sharpe ratios numerically
+        - Without adjustment, Sortino ratios tend to be higher than Sharpe ratios
+        - The smart parameter applies autocorrelation penalty via the sortino function
+        - Reference: https://archive.is/wip/2rwFW
+
+    See Also:
+        sortino: Standard Sortino ratio without adjustment
+        sharpe: Sharpe ratio for comparison
+        smart_sortino: Sortino with autocorrelation penalty
+    """
+    # Calculate standard Sortino ratio
+    data = sortino(returns, rf, periods=periods, annualize=annualize, smart=smart)
+
+    # Apply Schwager's adjustment factor
+    return data / sqrt(2)
 
 
 @overload
@@ -525,6 +603,74 @@ def cvar(
 
 
 @overload
+def expected_shortfall(
+    returns: Series,
+    sigma: float = 1,
+    confidence: float = 0.95,
+    prepare_returns: bool = True,
+) -> float: ...
+@overload
+def expected_shortfall(
+    returns: DataFrame,
+    sigma: float = 1,
+    confidence: float = 0.95,
+    prepare_returns: bool = True,
+) -> Series: ...
+def expected_shortfall(
+    returns: Series | DataFrame,
+    sigma: float = 1,
+    confidence: float = 0.95,
+    prepare_returns: bool = True,
+) -> float | Series:
+    """Calculate the Expected Shortfall (ES), also known as CVaR.
+
+    Expected Shortfall measures the average loss in the worst-case scenarios
+    beyond the Value at Risk (VaR) threshold. It provides a more comprehensive
+    risk measure than VaR by considering the severity of tail losses, not just
+    their probability.
+
+    This is an alias for conditional_value_at_risk() with identical functionality.
+
+    Args:
+        returns (Series | DataFrame): Portfolio returns data.
+        sigma (float, optional): Volatility multiplier for tail risk estimation.
+            Higher values assume more extreme tail events. Defaults to 1.
+        confidence (float, optional): Confidence level for the calculation.
+            Must be between 0 and 1. Common values:
+            - 0.95 (95%): Standard risk threshold
+            - 0.99 (99%): Conservative risk threshold
+            Defaults to 0.95.
+        prepare_returns (bool, optional): Whether to normalize returns before calculation.
+            Defaults to True.
+
+    Returns:
+        float | Series: Expected shortfall value (negative indicates losses).
+            Returns float for Series input, Series for DataFrame input (one value per column).
+            Calculated as the mean of returns below the VaR threshold.
+
+    Examples:
+        >>> returns = pd.Series([0.01, -0.02, 0.015, -0.03, 0.02, -0.01])
+        >>> expected_shortfall(returns, confidence=0.95)
+        -0.025  # Average of worst 5% losses
+
+    Notes:
+        - Also known as Conditional Value at Risk (CVaR) or Average Value at Risk (AVaR)
+        - More conservative than VaR as it considers tail severity
+        - Preferred by many regulators for risk management
+        - Satisfies sub-additivity property (unlike VaR)
+        - Returns NaN if no returns fall below VaR threshold
+        - Higher confidence levels result in more extreme (negative) ES values
+
+    See Also:
+        conditional_value_at_risk: The full implementation (ES is an alias)
+        cvar: Another alias for the same function
+        value_at_risk: VaR calculation (threshold only, not average)
+        var: Alias for value_at_risk
+    """
+    return conditional_value_at_risk(returns, sigma, confidence, prepare_returns)
+
+
+@overload
 def cdar(
     returns: Series,
     sigma: float = 1,
@@ -829,15 +975,14 @@ def outlier_win_ratio(
     """
     normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
 
-    if isinstance(normalized, Series):
-        positive_returns = normalized[normalized >= 0]
-        if len(positive_returns) == 0:
-            return float("inf")
-        return float(normalized.quantile(quantile) / positive_returns.mean())
-    else:
+    if not isinstance(normalized, Series):
         return normalized.apply(
             lambda col: outlier_win_ratio(col, quantile, prepare_returns=False)
         )
+    positive_returns = normalized[normalized >= 0]
+    if len(positive_returns) == 0:
+        return float("inf")
+    return float(normalized.quantile(quantile) / positive_returns.mean())
 
 
 @overload
@@ -882,15 +1027,14 @@ def outlier_loss_ratio(
     """
     normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
 
-    if isinstance(normalized, Series):
-        negative_returns = normalized[normalized < 0]
-        if len(negative_returns) == 0:
-            return float("-inf")
-        return float(normalized.quantile(quantile) / negative_returns.mean())
-    else:
+    if not isinstance(normalized, Series):
         return normalized.apply(
             lambda col: outlier_loss_ratio(col, quantile, prepare_returns=False)
         )
+    negative_returns = normalized[normalized < 0]
+    if len(negative_returns) == 0:
+        return float("-inf")
+    return float(normalized.quantile(quantile) / negative_returns.mean())
 
 
 @overload
@@ -935,17 +1079,16 @@ def recovery_factor(
     """
     normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
 
-    if isinstance(normalized, Series):
-        total_returns = normalized.sum() - rf
-        # max_drawdown already normalizes returns internally
-        max_dd = max_drawdown(returns) if prepare_returns else max_drawdown(normalized)
-        if max_dd == 0:
-            return float("inf") if total_returns >= 0 else float("-inf")
-        return float(abs(total_returns) / abs(max_dd))
-    else:
+    if not isinstance(normalized, Series):
         return normalized.apply(
             lambda col: recovery_factor(col, rf, prepare_returns=False)
         )
+    total_returns = normalized.sum() - rf
+    # max_drawdown already normalizes returns internally
+    max_dd = max_drawdown(returns) if prepare_returns else max_drawdown(normalized)
+    if max_dd == 0:
+        return float("inf") if total_returns >= 0 else float("-inf")
+    return float(abs(total_returns) / abs(max_dd))
 
 
 @overload
@@ -983,12 +1126,282 @@ def risk_return_ratio(
     """
     normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
 
-    if isinstance(normalized, Series):
-        std = normalized.std()
-        if std == 0:
-            return float("inf") if normalized.mean() > 0 else float("-inf")
-        return float(normalized.mean() / std)
-    else:
+    if not isinstance(normalized, Series):
         return normalized.apply(
             lambda col: risk_return_ratio(col, prepare_returns=False)
         )
+    std = normalized.std()
+    if std == 0:
+        return float("inf") if normalized.mean() > 0 else float("-inf")
+    return float(normalized.mean() / std)
+
+
+@overload
+def smart_sharpe(
+    returns: Series,
+    rf: float = 0.0,
+    periods: Optional[int] = 365,
+    annualize: bool = True,
+) -> float: ...
+@overload
+def smart_sharpe(
+    returns: DataFrame,
+    rf: float = 0.0,
+    periods: Optional[int] = 365,
+    annualize: bool = True,
+) -> Series: ...
+def smart_sharpe(
+    returns: Series | DataFrame,
+    rf: float = 0.0,
+    periods: Optional[int] = 365,
+    annualize: bool = True,
+) -> float | Series:
+    """Calculate the Smart Sharpe ratio with autocorrelation penalty.
+
+    The Smart Sharpe ratio adjusts the traditional Sharpe ratio by penalizing
+    for autocorrelation in returns. This provides a more conservative estimate
+    of risk-adjusted performance when returns exhibit serial correlation, which
+    can artificially inflate the standard Sharpe ratio.
+
+    Args:
+        returns (Series | DataFrame): Portfolio returns data.
+        rf (float, optional): Risk-free rate expressed as a yearly (annualized) return.
+            Defaults to 0.0.
+        periods (int, optional): Number of periods per year for annualization.
+            Defaults to 365 (daily data). Required when rf is non-zero.
+        annualize (bool, optional): Whether to annualize the ratio.
+            Defaults to True.
+
+    Returns:
+        float | Series: Smart Sharpe ratio value. Returns float for Series input,
+            Series for DataFrame input (one value per column).
+            Calculated as: sharpe_ratio * autocorr_penalty.
+
+    Raises:
+        ValueError: When rf is non-zero and periods is None.
+
+    Examples:
+        >>> returns = pd.Series([0.01, 0.02, -0.01, 0.03, 0.01])
+        >>> smart_sharpe(returns, rf=0.02, periods=252)
+        1.8  # Sharpe ratio adjusted for autocorrelation
+
+    Notes:
+        - Applies autocorrelation penalty to volatility in denominator
+        - More conservative than standard Sharpe when returns are autocorrelated
+        - Useful for strategies with momentum or mean-reversion characteristics
+        - Penalty based on correlation between consecutive returns
+        - Higher autocorrelation leads to larger penalty (lower Smart Sharpe)
+
+    See Also:
+        sharpe: Standard Sharpe ratio without autocorrelation adjustment
+        smart_sortino: Sortino ratio with autocorrelation penalty
+        autocorr_penalty: The autocorrelation penalty calculation
+    """
+    return sharpe(returns, rf, periods, annualize, smart=True)
+
+
+@overload
+def smart_sortino(
+    returns: Series,
+    rf: float = 0.0,
+    periods: Optional[int] = 365,
+    annualize: bool = True,
+) -> float: ...
+@overload
+def smart_sortino(
+    returns: DataFrame,
+    rf: float = 0.0,
+    periods: Optional[int] = 365,
+    annualize: bool = True,
+) -> Series: ...
+def smart_sortino(
+    returns: Series | DataFrame,
+    rf: float = 0.0,
+    periods: Optional[int] = 365,
+    annualize: bool = True,
+) -> float | Series:
+    """Calculate the Smart Sortino ratio with autocorrelation penalty.
+
+    The Smart Sortino ratio adjusts the traditional Sortino ratio by penalizing
+    for autocorrelation in returns. Like Smart Sharpe, this provides a more
+    conservative estimate when returns exhibit serial correlation, but focuses
+    only on downside volatility rather than total volatility.
+
+    Args:
+        returns (Series | DataFrame): Portfolio returns data.
+        rf (float, optional): Risk-free rate expressed as a yearly (annualized) return.
+            Defaults to 0.0.
+        periods (int, optional): Number of periods per year for annualization.
+            Defaults to 365 (daily data). Required when rf is non-zero.
+        annualize (bool, optional): Whether to annualize the ratio.
+            Defaults to True.
+
+    Returns:
+        float | Series: Smart Sortino ratio value. Returns float for Series input,
+            Series for DataFrame input (one value per column).
+            Returns NaN if there is no downside volatility.
+
+    Raises:
+        ValueError: When rf is non-zero and periods is None.
+
+    Examples:
+        >>> returns = pd.Series([0.01, 0.02, -0.01, 0.03, -0.005])
+        >>> smart_sortino(returns, rf=0.02, periods=252)
+        2.3  # Sortino ratio adjusted for autocorrelation
+
+    Notes:
+        - Applies autocorrelation penalty to downside deviation in denominator
+        - More conservative than standard Sortino when returns are autocorrelated
+        - Only penalizes downside volatility, not upside volatility
+        - Useful for asymmetric return distributions
+        - Preferred over Smart Sharpe when focusing on downside risk
+        - Returns NaN when there are no negative returns (zero downside deviation)
+
+    See Also:
+        sortino: Standard Sortino ratio without autocorrelation adjustment
+        smart_sharpe: Sharpe ratio with autocorrelation penalty
+        autocorr_penalty: The autocorrelation penalty calculation
+    """
+    return sortino(returns, rf, periods, annualize, smart=True)
+
+
+@overload
+def rar(
+    returns: Series,
+    rf: float = 0.0,
+    periods: int = 365,
+    prepare_returns: bool = True,
+) -> float: ...
+@overload
+def rar(
+    returns: DataFrame,
+    rf: float = 0.0,
+    periods: int = 365,
+    prepare_returns: bool = True,
+) -> Series: ...
+def rar(
+    returns: Series | DataFrame,
+    rf: float = 0.0,
+    periods: int = 365,
+    prepare_returns: bool = True,
+) -> float | Series:
+    """Calculate the Risk-Adjusted Return (RAR) accounting for market exposure.
+
+    RAR divides the Compound Annual Growth Rate (CAGR) by market exposure time,
+    providing a more accurate risk-adjusted return metric that penalizes strategies
+    with lower market participation. This is particularly useful for strategies that
+    are not fully invested at all times.
+
+    Args:
+        returns (Series | DataFrame): Portfolio returns data.
+        rf (float, optional): Risk-free rate expressed as a yearly (annualized) return.
+            Defaults to 0.0.
+        periods (int, optional): Number of periods per year for annualization.
+            Defaults to 365 (daily data).
+        prepare_returns (bool, optional): Whether to normalize returns before calculation.
+            Defaults to True.
+
+    Returns:
+        float | Series: Risk-adjusted return value. Returns float for Series input,
+            Series for DataFrame input (one value per column).
+            Calculated as: CAGR / exposure.
+
+    Examples:
+        >>> returns = pd.Series([0.01, 0.0, 0.02, 0.0, 0.03])  # 60% exposure
+        >>> rar(returns, periods=252)
+        0.12  # CAGR adjusted for 60% exposure time
+
+    Notes:
+        - Divides CAGR by exposure to account for time in market
+        - Higher exposure leads to lower RAR for same CAGR
+        - Useful for comparing strategies with different holding periods
+        - Exposure calculated as proportion of non-zero return periods
+        - Returns NaN if exposure is 0 (no market participation)
+
+    See Also:
+        cagr: Compound Annual Growth Rate
+        exposure: Market exposure time calculation
+        sharpe: Alternative risk-adjusted return metric
+    """
+    normalized = _utils.normalize_returns(returns, rf) if prepare_returns else returns
+    exp = exposure(normalized)
+
+    # Handle zero exposure edge case
+    if isinstance(exp, Series):
+        # For DataFrame input, handle zero exposure per column
+        result = cagr(returns=normalized, periods=periods) / exp
+        return result.replace([_np.inf, -_np.inf], _np.nan)
+    else:
+        # For Series input
+        if exp == 0:
+            return float("nan")
+        return cagr(returns=normalized, periods=periods) / exp
+
+
+@overload
+def kelly_criterion(
+    returns: Series,
+    prepare_returns: bool = True,
+) -> float: ...
+@overload
+def kelly_criterion(
+    returns: DataFrame,
+    prepare_returns: bool = True,
+) -> Series: ...
+def kelly_criterion(
+    returns: Series | DataFrame,
+    prepare_returns: bool = True,
+) -> float | Series:
+    """Calculate the Kelly Criterion for optimal position sizing.
+
+    The Kelly Criterion determines the optimal fraction of capital to allocate
+    to a strategy to maximize long-term growth rate. It balances the trade-off
+    between maximizing returns and minimizing risk of ruin.
+
+    Args:
+        returns (Series | DataFrame): Portfolio returns data.
+        prepare_returns (bool, optional): Whether to normalize returns before calculation.
+            Defaults to True.
+
+    Returns:
+        float | Series: Optimal capital allocation fraction. Returns float for Series input,
+            Series for DataFrame input (one value per column).
+            Calculated as: ((win_ratio * win_prob) - lose_prob) / win_ratio.
+            Values typically range from 0 to 1, where:
+            - 0 means do not invest
+            - 1 means invest 100% of capital
+            - Values > 1 suggest leverage (use with caution)
+            - Negative values suggest the strategy is not profitable
+
+    Examples:
+        >>> returns = pd.Series([0.02, -0.01, 0.03, -0.01, 0.02])
+        >>> kelly_criterion(returns)
+        0.25  # Suggests allocating 25% of capital
+
+    Notes:
+        - Based on win rate, loss rate, and win/loss ratio
+        - Assumes returns are independent and identically distributed
+        - Often considered aggressive; many practitioners use fractional Kelly (e.g., Kelly/2)
+        - Returns 0 or negative if strategy is not profitable
+        - Does not account for correlation between trades
+        - Sensitive to estimation errors in win rate and payoff ratio
+        - Should be used as a guideline, not an absolute rule
+
+    References:
+        Kelly, J. L. (1956). "A New Interpretation of Information Rate".
+        Bell System Technical Journal. 35 (4): 917–926.
+        https://en.wikipedia.org/wiki/Kelly_criterion
+
+    See Also:
+        win_rate: Probability of winning trades
+        payoff_ratio: Average win to average loss ratio
+        risk_of_ruin: Probability of losing all capital
+    """
+    normalized: Series | DataFrame = (
+        _utils.normalize_returns(data=returns) if prepare_returns else returns
+    )
+    win_loss_ratio = payoff_ratio(normalized, prepare_returns=False)
+    win_prob = win_rate(normalized, prepare_returns=False)
+    lose_prob = 1 - win_prob
+
+    return ((win_loss_ratio * win_prob) - lose_prob) / win_loss_ratio

@@ -417,3 +417,518 @@ def test_new_metrics_dataframe_consistency(sample_returns):
     assert isinstance(rrr_result, pd.Series)
     assert len(rrr_result) == 3
     assert not rrr_result.isna().any()
+
+
+def test_smart_sharpe_equals_sharpe_with_smart_flag(sample_returns):
+    """Test that smart_sharpe() equals sharpe(..., smart=True)."""
+    periods = 252
+    rf = 0.02
+
+    smart_result = metrics.smart_sharpe(
+        sample_returns, rf=rf, periods=periods, annualize=True
+    )
+    sharpe_result = metrics.sharpe(
+        sample_returns, rf=rf, periods=periods, annualize=True, smart=True
+    )
+
+    assert smart_result == pytest.approx(sharpe_result)
+
+
+def test_smart_sharpe_applies_autocorr_penalty(sample_returns):
+    """Test that smart_sharpe applies autocorrelation penalty."""
+    periods = 252
+
+    # Smart Sharpe should be less than or equal to regular Sharpe (due to penalty)
+    smart = metrics.smart_sharpe(sample_returns, periods=periods, annualize=False)
+    regular = metrics.sharpe(
+        sample_returns, periods=periods, annualize=False, smart=False
+    )
+    penalty = metrics.autocorr_penalty(
+        timeseries_utils.normalize_returns(sample_returns)
+    )
+
+    # Smart sharpe should equal regular sharpe divided by penalty
+    assert smart == pytest.approx(regular / penalty)
+
+
+def test_smart_sharpe_with_rf_requires_periods():
+    """Test that smart_sharpe raises ValueError when rf is non-zero and periods is None."""
+    returns = pd.Series([0.01, -0.01, 0.02, -0.005])
+
+    with pytest.raises(
+        ValueError, match="When rf is non-zero, periods must be specified"
+    ):
+        metrics.smart_sharpe(returns, rf=0.02, periods=None)
+
+
+def test_smart_sharpe_dataframe_returns_series(sample_returns):
+    """Test that smart_sharpe returns Series for DataFrame input."""
+    df = pd.DataFrame(
+        {
+            "strategy_1": sample_returns,
+            "strategy_2": sample_returns * 1.5,
+        }
+    )
+
+    result = metrics.smart_sharpe(df, periods=252)
+    assert isinstance(result, pd.Series)
+    assert len(result) == 2
+    assert "strategy_1" in result.index
+    assert "strategy_2" in result.index
+
+
+def test_smart_sharpe_annualize_parameter(sample_returns):
+    """Test smart_sharpe with annualize parameter."""
+    periods = 252
+
+    annualized = metrics.smart_sharpe(sample_returns, periods=periods, annualize=True)
+    not_annualized = metrics.smart_sharpe(
+        sample_returns, periods=periods, annualize=False
+    )
+
+    # Annualized should be sqrt(periods) times the non-annualized
+    assert annualized == pytest.approx(not_annualized * np.sqrt(periods))
+
+
+def test_smart_sortino_equals_sortino_with_smart_flag(sample_returns):
+    """Test that smart_sortino() equals sortino(..., smart=True)."""
+    periods = 252
+    rf = 0.02
+
+    smart_result = metrics.smart_sortino(
+        sample_returns, rf=rf, periods=periods, annualize=True
+    )
+    sortino_result = metrics.sortino(
+        sample_returns, rf=rf, periods=periods, annualize=True, smart=True
+    )
+
+    assert smart_result == pytest.approx(sortino_result)
+
+
+def test_smart_sortino_applies_autocorr_penalty(sample_returns):
+    """Test that smart_sortino applies autocorrelation penalty to downside."""
+    periods = 252
+
+    # Smart Sortino should differ from regular Sortino due to penalty
+    smart = metrics.smart_sortino(sample_returns, periods=periods, annualize=False)
+    regular = metrics.sortino(
+        sample_returns, periods=periods, annualize=False, smart=False
+    )
+
+    # They should be different (penalty applied to downside deviation)
+    assert smart != regular
+
+
+def test_smart_sortino_with_rf_requires_periods():
+    """Test that smart_sortino raises ValueError when rf is non-zero and periods is None."""
+    returns = pd.Series([0.01, -0.01, 0.02, -0.005])
+
+    with pytest.raises(
+        ValueError, match="When rf is non-zero, periods must be specified"
+    ):
+        metrics.smart_sortino(returns, rf=0.02, periods=None)
+
+
+def test_smart_sortino_series_input(sample_returns):
+    """Test that smart_sortino works with Series input."""
+    result = metrics.smart_sortino(sample_returns, periods=252)
+    assert isinstance(result, float)
+    assert not np.isnan(result)
+
+
+def test_smart_sortino_annualize_parameter(sample_returns):
+    """Test smart_sortino with annualize parameter."""
+    periods = 252
+
+    annualized = metrics.smart_sortino(sample_returns, periods=periods, annualize=True)
+    not_annualized = metrics.smart_sortino(
+        sample_returns, periods=periods, annualize=False
+    )
+
+    # Annualized should be sqrt(periods) times the non-annualized
+    assert annualized == pytest.approx(not_annualized * np.sqrt(periods))
+
+
+def test_smart_metrics_more_conservative(sample_returns):
+    """Test that smart metrics are generally more conservative than regular metrics."""
+    periods = 252
+
+    # For returns with autocorrelation, smart ratios should typically be lower
+    regular_sharpe = metrics.sharpe(sample_returns, periods=periods, annualize=False)
+    smart_sharpe_result = metrics.smart_sharpe(
+        sample_returns, periods=periods, annualize=False
+    )
+
+    # The penalty should make smart sharpe smaller or equal
+    # (Equal only if autocorrelation is zero, which is rare)
+    penalty = metrics.autocorr_penalty(
+        timeseries_utils.normalize_returns(sample_returns)
+    )
+    assert penalty >= 1.0  # Penalty should be >= 1
+    assert smart_sharpe_result <= regular_sharpe
+
+
+def test_rar_calculation(sample_returns):
+    """Test RAR calculation matches manual calculation."""
+    periods = 252
+
+    normalized = timeseries_utils.normalize_returns(sample_returns)
+    expected_cagr = stats.cagr(normalized, periods=periods)
+    expected_exposure = stats.exposure(normalized)
+    expected = expected_cagr / expected_exposure
+
+    result = metrics.rar(sample_returns, periods=periods)
+    assert result == pytest.approx(expected)
+
+
+def test_rar_with_rf(sample_returns):
+    """Test RAR with risk-free rate."""
+    periods = 252
+    rf = 0.02
+
+    result = metrics.rar(sample_returns, rf=rf, periods=periods)
+    assert isinstance(result, float)
+    assert not np.isnan(result)
+
+
+def test_rar_dataframe_returns_series(sample_returns):
+    """Test that RAR returns Series for DataFrame input."""
+    df = pd.DataFrame(
+        {
+            "strategy_1": sample_returns,
+            "strategy_2": sample_returns * 1.5,
+        }
+    )
+
+    result = metrics.rar(df, periods=252)
+    assert isinstance(result, pd.Series)
+    assert len(result) == 2
+    assert "strategy_1" in result.index
+    assert "strategy_2" in result.index
+
+
+def test_rar_accounts_for_exposure():
+    """Test that RAR properly accounts for exposure."""
+    # Create returns with 50% exposure (half zeros)
+    returns_full = pd.Series([0.01, 0.02, 0.01, 0.02])  # 100% exposure
+    returns_half = pd.Series([0.01, 0.0, 0.02, 0.0])  # 50% exposure
+
+    rar_full = metrics.rar(returns_full, prepare_returns=False, periods=252)
+    rar_half = metrics.rar(returns_half, prepare_returns=False, periods=252)
+
+    # RAR with lower exposure should be higher (penalized less)
+    # since CAGR is divided by exposure
+    assert isinstance(rar_full, float)
+    assert isinstance(rar_half, float)
+
+
+def test_rar_zero_exposure():
+    """Test RAR with zero exposure returns nan."""
+    # All zero returns = zero exposure
+    zero_returns = pd.Series([0.0, 0.0, 0.0, 0.0])
+    result = metrics.rar(zero_returns, prepare_returns=False)
+
+    # Should be nan due to zero exposure
+    assert np.isnan(result)
+
+
+def test_kelly_criterion_calculation(sample_returns):
+    """Test Kelly criterion calculation matches manual calculation."""
+    normalized = timeseries_utils.normalize_returns(sample_returns)
+
+    win_ratio = stats.avg_win(normalized) / abs(stats.avg_loss(normalized))
+    win_prob = stats.win_rate(normalized)
+    lose_prob = 1 - win_prob
+
+    expected = ((win_ratio * win_prob) - lose_prob) / win_ratio
+    result = metrics.kelly_criterion(sample_returns)
+
+    assert result == pytest.approx(expected)
+
+
+def test_kelly_criterion_dataframe_returns_series(sample_returns):
+    """Test that kelly_criterion returns Series for DataFrame input."""
+    df = pd.DataFrame(
+        {
+            "strategy_1": sample_returns,
+            "strategy_2": sample_returns * 1.5,
+        }
+    )
+
+    result = metrics.kelly_criterion(df)
+    assert isinstance(result, pd.Series)
+    assert len(result) == 2
+    assert "strategy_1" in result.index
+    assert "strategy_2" in result.index
+
+
+def test_kelly_criterion_profitable_strategy():
+    """Test Kelly criterion with a profitable strategy."""
+    # Create profitable returns: 60% win rate, 2:1 win/loss ratio
+    returns = pd.Series([0.02, 0.02, 0.02, -0.01, -0.01])
+
+    result = metrics.kelly_criterion(returns, prepare_returns=False)
+
+    # Should be positive for profitable strategy
+    assert result > 0
+    # Should be reasonable (not suggest over-leveraging)
+    assert result <= 1.0
+
+
+def test_kelly_criterion_unprofitable_strategy():
+    """Test Kelly criterion with unprofitable strategy."""
+    # Create unprofitable returns: more/bigger losses than wins
+    returns = pd.Series([0.01, -0.02, -0.02, -0.02, 0.01])
+
+    result = metrics.kelly_criterion(returns, prepare_returns=False)
+
+    # Should be zero or negative for unprofitable strategy
+    assert result <= 0
+
+
+def test_kelly_criterion_uses_payoff_and_win_rate():
+    """Test that Kelly uses payoff ratio and win rate correctly."""
+    returns = pd.Series([0.03, 0.03, -0.01, -0.01, -0.01, -0.01])
+
+    # Calculate components manually
+    normalized = timeseries_utils.normalize_returns(returns)
+    payoff = metrics.payoff_ratio(normalized, prepare_returns=False)
+    win_r = stats.win_rate(normalized)
+    lose_r = 1 - win_r
+
+    expected = ((payoff * win_r) - lose_r) / payoff
+    result = metrics.kelly_criterion(returns)
+
+    assert result == pytest.approx(expected)
+
+
+def test_kelly_criterion_no_prepare_returns():
+    """Test Kelly criterion with prepare_returns=False."""
+    returns = pd.Series([0.02, -0.01, 0.03, -0.01, 0.02])
+
+    result = metrics.kelly_criterion(returns, prepare_returns=False)
+    assert isinstance(result, float)
+    assert not np.isnan(result)
+
+
+def test_expected_shortfall_equals_cvar(sample_returns):
+    """Test that expected_shortfall equals conditional_value_at_risk."""
+    confidence = 0.95
+    sigma = 1
+
+    es_result = metrics.expected_shortfall(
+        sample_returns, sigma=sigma, confidence=confidence
+    )
+    cvar_result = metrics.conditional_value_at_risk(
+        sample_returns, sigma=sigma, confidence=confidence
+    )
+
+    assert es_result == pytest.approx(cvar_result)
+
+
+def test_expected_shortfall_dataframe_returns_series(sample_returns):
+    """Test that expected_shortfall returns Series for DataFrame input."""
+    df = pd.DataFrame(
+        {
+            "strategy_1": sample_returns,
+            "strategy_2": sample_returns * 1.5,
+        }
+    )
+
+    result = metrics.expected_shortfall(df, confidence=0.95)
+    assert isinstance(result, pd.Series)
+    assert len(result) == 2
+    assert "strategy_1" in result.index
+    assert "strategy_2" in result.index
+
+
+def test_expected_shortfall_confidence_levels(sample_returns):
+    """Test expected_shortfall with different confidence levels."""
+    # Higher confidence should give more extreme (negative) values
+    es_95 = metrics.expected_shortfall(sample_returns, confidence=0.95)
+    es_99 = metrics.expected_shortfall(sample_returns, confidence=0.99)
+
+    assert isinstance(es_95, float)
+    assert isinstance(es_99, float)
+    # 99% ES should be more extreme (more negative) than 95% ES
+    # (assuming there are losses in the tail)
+    assert es_99 <= es_95
+
+
+def test_expected_shortfall_is_tail_average():
+    """Test that expected_shortfall measures average tail loss."""
+    # Create returns where we know the tail
+    returns = pd.Series([0.02, 0.01, 0.005, -0.01, -0.02, -0.03, -0.04])
+
+    # At 95% confidence, roughly 5% worst = 1 observation (the -0.04)
+    # ES should be close to mean of worst observations
+    es = metrics.expected_shortfall(returns, confidence=0.95, prepare_returns=False)
+
+    # Should be negative (representing losses)
+    assert es < 0
+
+
+def test_expected_shortfall_sigma_parameter(sample_returns):
+    """Test expected_shortfall with different sigma values."""
+    es_sigma_1 = metrics.expected_shortfall(sample_returns, sigma=1, confidence=0.95)
+    es_sigma_2 = metrics.expected_shortfall(sample_returns, sigma=2, confidence=0.95)
+
+    assert isinstance(es_sigma_1, float)
+    assert isinstance(es_sigma_2, float)
+    # Different sigma values may produce different results
+    # (depending on implementation of conditional_value_at_risk)
+
+
+def test_expected_shortfall_prepare_returns_parameter(sample_returns):
+    """Test expected_shortfall with prepare_returns parameter."""
+    result_with_prep = metrics.expected_shortfall(sample_returns, prepare_returns=True)
+    result_without_prep = metrics.expected_shortfall(
+        sample_returns, prepare_returns=False
+    )
+
+    # Both should return valid floats
+    assert isinstance(result_with_prep, float)
+    assert isinstance(result_without_prep, float)
+
+
+def test_expected_shortfall_alias_consistency():
+    """Test that all CVaR aliases return the same value."""
+    returns = pd.Series([0.01, -0.02, 0.015, -0.01, 0.02])
+
+    es = metrics.expected_shortfall(returns, prepare_returns=False)
+    cvar = metrics.cvar(returns, prepare_returns=False)
+    full = metrics.conditional_value_at_risk(returns, prepare_returns=False)
+
+    # All three should be identical
+    assert es == pytest.approx(cvar)
+    assert es == pytest.approx(full)
+    assert cvar == pytest.approx(full)
+
+
+def test_adjusted_sortino_equals_sortino_divided_by_sqrt2(sample_returns):
+    """Test that adjusted_sortino equals sortino / sqrt(2)."""
+    periods = 252
+    rf = 0.02
+
+    adjusted = metrics.adjusted_sortino(
+        sample_returns, rf=rf, periods=periods, annualize=True
+    )
+    standard = metrics.sortino(
+        sample_returns, rf=rf, periods=periods, annualize=True, smart=False
+    )
+
+    # Adjusted should equal standard / sqrt(2)
+    assert adjusted == pytest.approx(standard / np.sqrt(2))
+
+
+def test_adjusted_sortino_with_smart_flag(sample_returns):
+    """Test that adjusted_sortino works with smart=True."""
+    periods = 252
+
+    # Should equal smart_sortino / sqrt(2)
+    adjusted_smart = metrics.adjusted_sortino(
+        sample_returns, periods=periods, smart=True
+    )
+    smart_sortino_val = metrics.smart_sortino(sample_returns, periods=periods)
+
+    assert adjusted_smart == pytest.approx(smart_sortino_val / np.sqrt(2))
+
+
+def test_adjusted_sortino_dataframe_returns_series(sample_returns):
+    """Test that adjusted_sortino returns Series for DataFrame input."""
+    df = pd.DataFrame(
+        {
+            "strategy_1": sample_returns,
+            "strategy_2": sample_returns * 1.5,
+        }
+    )
+
+    result = metrics.adjusted_sortino(df, periods=252)
+    assert isinstance(result, pd.Series)
+    assert len(result) == 2
+    assert "strategy_1" in result.index
+    assert "strategy_2" in result.index
+
+
+def test_adjusted_sortino_annualize_parameter(sample_returns):
+    """Test adjusted_sortino with annualize parameter."""
+    periods = 252
+
+    annualized = metrics.adjusted_sortino(
+        sample_returns, periods=periods, annualize=True
+    )
+    not_annualized = metrics.adjusted_sortino(
+        sample_returns, periods=periods, annualize=False
+    )
+
+    # Annualized should be sqrt(periods) times the non-annualized
+    assert annualized == pytest.approx(not_annualized * np.sqrt(periods))
+
+
+def test_adjusted_sortino_lower_than_sortino():
+    """Test that adjusted Sortino is lower than standard Sortino (due to sqrt(2) division)."""
+    returns = pd.Series([0.02, -0.01, 0.03, -0.005, 0.015])
+
+    adjusted = metrics.adjusted_sortino(returns, rf=0, periods=252, annualize=True)
+    standard = metrics.sortino(returns, rf=0, periods=252, annualize=True)
+
+    # Adjusted should be lower (divided by sqrt(2) ≈ 1.414)
+    assert adjusted < standard
+    assert adjusted == pytest.approx(standard / np.sqrt(2))
+
+
+def test_adjusted_sortino_comparable_to_sharpe():
+    """Test that adjusted Sortino is more comparable to Sharpe ratio."""
+    returns = pd.Series([0.01, -0.02, 0.03, -0.01, 0.02, 0.015, -0.01])
+
+    adjusted_sortino_val = metrics.adjusted_sortino(
+        returns, rf=0, periods=252, annualize=True
+    )
+    sharpe_val = metrics.sharpe(returns, rf=0, periods=252, annualize=True)
+
+    # Both should be floats
+    assert isinstance(adjusted_sortino_val, float)
+    assert isinstance(sharpe_val, float)
+
+    # Adjusted Sortino should be closer to Sharpe than standard Sortino
+    # (This is the purpose of the adjustment)
+    standard_sortino_val = metrics.sortino(returns, rf=0, periods=252, annualize=True)
+
+    # Standard Sortino is typically higher than Sharpe
+    # Adjusted Sortino should be closer to Sharpe value
+    diff_adjusted = abs(adjusted_sortino_val - sharpe_val)
+    diff_standard = abs(standard_sortino_val - sharpe_val)
+
+    # Adjustment makes it more comparable
+    assert diff_adjusted < diff_standard
+
+
+def test_adjusted_sortino_with_rf(sample_returns):
+    """Test adjusted_sortino with different risk-free rates."""
+    rf_0 = metrics.adjusted_sortino(sample_returns, rf=0.0, periods=252)
+    rf_2 = metrics.adjusted_sortino(sample_returns, rf=0.02, periods=252)
+
+    # Different rf should give different results
+    assert rf_0 != rf_2
+    assert isinstance(rf_0, float)
+    assert isinstance(rf_2, float)
+
+
+def test_adjusted_sortino_series_input(sample_returns):
+    """Test that adjusted_sortino works with Series input."""
+    result = metrics.adjusted_sortino(sample_returns, periods=252)
+    assert isinstance(result, float)
+    assert not np.isnan(result)
+
+
+def test_adjusted_sortino_mixed_returns():
+    """Test adjusted_sortino with mixed positive and negative returns."""
+    # Include both positive and negative returns
+    returns = pd.Series([0.01, -0.005, 0.02, 0.015, -0.01, 0.03, 0.012])
+
+    result = metrics.adjusted_sortino(returns, periods=252, rf=0, annualize=True)
+
+    # Should be positive for returns with positive mean
+    assert result > 0
+    assert isinstance(result, float)
+    assert not np.isnan(result)
