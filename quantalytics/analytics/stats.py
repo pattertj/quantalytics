@@ -5,6 +5,7 @@ from typing import Optional, overload
 from warnings import warn
 
 import numpy as _np
+import pandas as _pd
 from numpy._core.fromnumeric import prod
 from pandas.core.frame import DataFrame
 from pandas.core.indexes.datetimes import DatetimeIndex
@@ -566,3 +567,162 @@ def _calculate_years(
     raise ValueError(
         "Cannot determine time period. Either provide periods or ensure returns has a DatetimeIndex"
     )
+
+
+@overload
+def drawdown_details(drawdown: Series) -> DataFrame: ...
+@overload
+def drawdown_details(drawdown: DataFrame) -> DataFrame: ...
+def drawdown_details(drawdown: Series | DataFrame) -> DataFrame:
+    """
+    Calculate detailed statistics for each individual drawdown period.
+
+    Analyzes a drawdown series to identify and characterize each distinct drawdown period,
+    providing comprehensive statistics including start/end dates, duration, valley (maximum
+    drawdown point), maximum drawdown percentage, and 99th percentile drawdown (excluding outliers).
+
+    Parameters
+    ----------
+    drawdown : Series or DataFrame
+        Drawdown series (typically output from `to_drawdown_series`).
+        Values should be <= 0, where 0 indicates no drawdown and negative values
+        indicate the depth of drawdown from the running maximum.
+        If DataFrame, processes each column independently and concatenates results.
+
+    Returns
+    -------
+    DataFrame
+        For Series input: DataFrame with one row per drawdown period and columns:
+            - start: Timestamp when drawdown period began
+            - valley: Timestamp of maximum drawdown point
+            - end: Timestamp when drawdown period ended (recovered to 0)
+            - days: Duration of drawdown period in days
+            - max drawdown: Maximum drawdown percentage (as positive number, e.g., 15.2 for -15.2%)
+            - 99% max drawdown: 99th percentile drawdown excluding outliers
+
+        For DataFrame input: Multi-level column DataFrame where first level is original
+        column names and second level contains the statistics above.
+
+    Examples
+    --------
+    >>> from quantalytics.analytics import to_drawdown_series, drawdown_details
+    >>> import pandas as pd
+    >>> returns = pd.Series([0.01, -0.02, -0.01, 0.03, 0.02, -0.05, 0.01])
+    >>> dd = to_drawdown_series(returns)
+    >>> details = drawdown_details(dd)
+    >>> print(details.columns)
+    Index(['start', 'valley', 'end', 'days', 'max drawdown', '99% max drawdown'], dtype='object')
+
+    Notes
+    -----
+    - A drawdown period begins when drawdown becomes non-zero and ends when it returns to zero
+    - If the series starts in a drawdown, the first period's start is set to the series start
+    - If the series ends in a drawdown, the last period's end is set to the series end
+    - The 99% max drawdown uses `remove_outliers` to exclude extreme values, providing
+      a more robust measure of typical drawdown severity
+    - All drawdown percentages are returned as positive values for easier interpretation
+
+    See Also
+    --------
+    max_drawdown : Calculate maximum drawdown from returns
+    to_drawdown_series : Convert returns to drawdown series (in metrics module)
+    """
+
+    def _drawdown_details(drawdown_series: Series) -> DataFrame:
+        """Calculate drawdown details for a single drawdown series."""
+        # Mark periods with no drawdown (drawdown = 0)
+        no_dd = drawdown_series == 0
+
+        # Extract drawdown start dates (transition from 0 to non-zero)
+        starts = ~no_dd & no_dd.shift(1)
+        starts = list(starts[starts.values].index)
+
+        # Extract drawdown end dates (transition from non-zero to 0)
+        ends = no_dd & (~no_dd).shift(1)
+        ends = list(ends[ends.values].index)
+
+        # Handle edge cases: series starting or ending in drawdown
+        if ends and (not starts or starts[0] > ends[0]):
+            # Series starts in drawdown
+            starts.insert(0, drawdown_series.index[0])
+        if not ends or (starts and starts[-1] > ends[-1]):
+            # Series ends in drawdown
+            ends.append(drawdown_series.index[-1])
+
+        # Return empty DataFrame if no drawdowns found
+        if not starts:
+            return _pd.DataFrame(
+                index=[],
+                columns=(
+                    "start",
+                    "valley",
+                    "end",
+                    "days",
+                    "max drawdown",
+                    "99% max drawdown",
+                ),
+            )
+
+        # Build detailed statistics for each drawdown period
+        data = []
+        for i in range(len(starts)):
+            # Check if this drawdown has recovered (ends[i] has drawdown == 0)
+            # or if series ends in drawdown (ends[i] is last index)
+            if drawdown_series[ends[i]] == 0:
+                # Drawdown recovered: exclude the recovery day (ends[i])
+                last_dd_day = ends[i] - _pd.Timedelta(days=1)
+                dd_period = drawdown_series[starts[i] : last_dd_day]
+                days_in_dd = (last_dd_day - starts[i]).days + 1
+            else:
+                # Series ends in drawdown: include the last day
+                dd_period = drawdown_series[starts[i] : ends[i]]
+                days_in_dd = (ends[i] - starts[i]).days + 1
+
+            # Calculate 99th percentile drawdown (excluding outliers)
+            clean_dd = -remove_outliers(-dd_period, 0.99)
+
+            # Collect statistics
+            data.append(
+                (
+                    starts[i],
+                    dd_period.idxmin(),  # valley = point of max drawdown
+                    ends[i],  # end = recovery date or last date
+                    days_in_dd,
+                    dd_period.min() * 100,  # Convert to percentage (as negative)
+                    clean_dd.min() * 100,  # 99% drawdown as percentage
+                )
+            )
+
+        # Create DataFrame with results
+        df = _pd.DataFrame(
+            data=data,
+            columns=(
+                "start",
+                "valley",
+                "end",
+                "days",
+                "max drawdown",
+                "99% max drawdown",
+            ),
+        )
+
+        # Format date columns as date strings (without time) for better display
+        for col in ["start", "valley", "end"]:
+            df[col] = df[col].apply(
+                lambda x: x.strftime("%Y-%m-%d") if hasattr(x, "strftime") else str(x)
+            )
+
+        # Convert drawdown percentages to positive values (easier interpretation)
+        df["max drawdown"] = -df["max drawdown"]
+        df["99% max drawdown"] = -df["99% max drawdown"]
+
+        return df
+
+    # Handle DataFrame input by processing each column
+    if isinstance(drawdown, DataFrame):
+        dfs = {}
+        for col in drawdown.columns:
+            dfs[col] = _drawdown_details(drawdown[col])
+        return _pd.concat(dfs, axis=1)
+
+    return _drawdown_details(drawdown)
