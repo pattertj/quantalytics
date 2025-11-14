@@ -2,6 +2,7 @@
 
 ![PyPI - Version](https://img.shields.io/pypi/v/quantalytics)
 ![GitHub last commit](https://img.shields.io/github/last-commit/pattertj/quantalytics)
+![Codecov](https://img.shields.io/codecov/c/github/pattertj/quantalytics)
 ![PyPI - Downloads](https://img.shields.io/pypi/dm/quantalytics)
 ![PyPI - License](https://img.shields.io/pypi/l/quantalytics)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/quantalytics)
