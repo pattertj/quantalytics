@@ -142,10 +142,12 @@ def test_rolling_volatility_prefix_nans(sample_returns):
 
 
 def test_cagr_simple_case():
-    returns = pd.Series(
-        [0.05, 0.05], index=pd.date_range("2024-01-01", periods=2, freq="D")
-    )
-    expected = (1 + 0.05) ** 2 - 1
+    """Test CAGR with simple compounding using periods parameter."""
+    returns = pd.Series([0.05, 0.05])  # No DatetimeIndex
+    # With 2 data points and periods=2, years = 2/2 = 1 year
+    # Total return = 1.05 * 1.05 = 1.1025
+    # CAGR = 1.1025^(1/1) - 1 = 0.1025
+    expected = (1 + 0.05) * (1 + 0.05) - 1  # = 0.1025
     assert stats.cagr(returns, periods=2) == pytest.approx(expected)
 
 

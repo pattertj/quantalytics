@@ -472,7 +472,7 @@ def cagr(
     """
     # Use the date range from the dataset, otherwise override.
     if not isinstance(returns.index, DatetimeIndex):
-        periods: int = periods or 365
+        periods: int = periods or 252
 
     if returns.empty:
         return Series(dtype=float) if isinstance(returns, DataFrame) else _np.nan
@@ -541,13 +541,6 @@ def _calculate_years(
     float
         Number of years
     """
-    if periods is not None:
-        # Simple calculation based on number of periods
-        if isinstance(returns, DataFrame):
-            return len(returns) / periods
-        else:
-            return len(returns.dropna()) / periods
-
     # Try to infer from DatetimeIndex
     if isinstance(returns.index, DatetimeIndex):
         if isinstance(returns, DataFrame):
@@ -561,6 +554,14 @@ def _calculate_years(
         # Calculate actual time span
         time_delta = idx[-1] - idx[0]
         return time_delta.total_seconds() / (365.25 * 24 * 60 * 60)
+
+    if periods is not None:
+        # Simple calculation based on number of periods
+        if isinstance(returns, DataFrame):
+            return len(returns) / periods
+        else:
+            return len(returns.dropna()) / periods
+
     # Can't determine years without periods or DatetimeIndex
     raise ValueError(
         "Cannot determine time period. Either provide periods or ensure returns has a DatetimeIndex"
