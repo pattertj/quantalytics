@@ -1,5 +1,13 @@
 """Aggregate analytics helpers so downstream consumers can import from `quantalytics.analytics`."""
 
+from .benchmarks import (
+    compare,
+    greeks,
+    information_ratio,
+    r2,
+    r_squared,
+    rolling_greeks,
+)
 from .metrics import (
     calmar,
     cdar,
@@ -14,6 +22,7 @@ from .metrics import (
     payoff_ratio,
     profit_factor,
     profit_ratio,
+    romad,
     risk_of_ruin,
     ror,
     serenity_index,
@@ -89,6 +98,7 @@ __all__: list[str] = [
     "payoff_ratio",
     "profit_factor",
     "profit_ratio",
+    "romad",
     "risk_of_ruin",
     "ror",
     "serenity_index",
@@ -102,4 +112,10 @@ __all__: list[str] = [
     "value_at_risk",
     "var",
     "win_loss_ratio",
+    "r_squared",
+    "r2",
+    "information_ratio",
+    "greeks",
+    "rolling_greeks",
+    "compare",
 ]

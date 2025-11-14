@@ -191,6 +191,15 @@ def test_ulcer_index_calc():
     assert upi_value == pytest.approx(comp / ui)
 
 
+def test_romad_matches_calmar(sample_returns):
+    romad_value = metrics.romad(sample_returns, periods=252)
+    assert romad_value == pytest.approx(metrics.calmar(sample_returns, periods=252))
+    df = pd.DataFrame({"a": sample_returns, "b": sample_returns * 0.5})
+    romad_df = metrics.romad(df, periods=252)
+    calmar_df = metrics.calmar(df, periods=252)
+    pd.testing.assert_series_equal(romad_df, calmar_df)
+
+
 def test_tail_payoff_profit_metrics(sample_returns):
     tr = metrics.tail_ratio(sample_returns)
     upper = sample_returns.quantile(0.95)

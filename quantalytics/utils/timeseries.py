@@ -3,17 +3,81 @@
 from __future__ import annotations
 
 import warnings
-from typing import Iterable, Optional
+from typing import Iterable, Optional, overload
 
 from numpy import arange, inf, log, nan
 from pandas.core.dtypes.missing import isna
 from pandas.core.frame import DataFrame
-from pandas.core.indexes.datetimes import DatetimeIndex
+from pandas.core.indexes.datetimes import DatetimeIndex, date_range
 from pandas.core.reshape.concat import concat
 from pandas.core.series import Series
 from pandas.core.tools.datetimes import to_datetime
 
 from quantalytics.analytics import stats as _stats
+
+
+def _prepare_benchmark(
+    benchmark: Series | DataFrame,
+    period: DatetimeIndex | str = "max",
+    rf: float = 0.0,
+    prepare_returns: bool = True,
+) -> Series | DataFrame:
+    """Prepare benchmark data for comparison with strategy returns.
+
+    Args:
+        benchmark (Series | DataFrame): Benchmark return or price data. If DataFrame,
+            uses first column only.
+        period (DatetimeIndex | str, optional): Time period for benchmark alignment.
+            If DatetimeIndex, resamples benchmark to match the provided dates.
+            If "max" or other string, uses benchmark as-is. Defaults to "max".
+        rf (float, optional): Risk-free rate for excess return calculation.
+            Defaults to 0.0.
+        prepare_returns (bool, optional): Whether to normalize returns and apply
+            risk-free rate adjustment. If False, returns raw data. Defaults to True.
+
+    Raises:
+        ValueError: If benchmark is None.
+
+    Returns:
+        Series | DataFrame: Cleaned and aligned benchmark data with timezone-naive
+            DatetimeIndex, optionally normalized to excess returns.
+    """
+    if benchmark is None:
+        raise ValueError("")
+
+    if isinstance(benchmark, DataFrame):
+        benchmark = benchmark[benchmark.columns[0]].copy()
+
+    if isinstance(period, DatetimeIndex) and set(period) != set(benchmark.index):
+        # Adjust Benchmark to Strategy frequency
+        benchmark_prices = to_prices(benchmark, base=1)
+        new_index = date_range(start=period[0], end=period[-1], freq="D")
+        benchmark = (
+            benchmark_prices.reindex(new_index, method="bfill")
+            .reindex(period)
+            .pct_change()
+            .fillna(0)
+        )
+        benchmark = benchmark[benchmark.index.isin(period)]
+
+    if isinstance(benchmark.index, DatetimeIndex):
+        benchmark.index = benchmark.index.tz_localize(None)
+
+    if prepare_returns:
+        return normalize_returns(data=benchmark.dropna(), rf=rf)
+
+    return benchmark.dropna()
+
+
+@overload
+def to_prices(returns: DataFrame, base: float = 1e5) -> DataFrame: ...
+@overload
+def to_prices(returns: Series, base: float = 1e5) -> Series: ...
+def to_prices(returns: Series | DataFrame, base: float = 1e5) -> Series | DataFrame:
+    """Converts returns series to price data"""
+    returns = returns.copy().fillna(0).replace([inf, -inf], float("NaN"))
+
+    return base + base * _stats.compsum(returns)
 
 
 def multi_shift(df: Series | DataFrame, shift: int = 3) -> DataFrame:

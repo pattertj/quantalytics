@@ -124,9 +124,9 @@ def sortino(
         safe = downside.replace(0, _np.nan)
         res = mean_returns / safe
         res = res.where(~downside.eq(0), float("nan"))
+    elif downside == 0:
+        return float("nan")
     else:
-        if downside == 0:
-            return float("nan")
         res = mean_returns / downside
 
     return res * sqrt(1 if periods is None else periods) if annualize else res
@@ -154,6 +154,23 @@ def calmar(
         safe = max_dd.replace(0, _np.nan)
         return cagr_pct / safe.abs()
     return float("nan") if max_dd == 0 else cagr_pct / abs(max_dd)
+
+
+@overload
+def romad(
+    returns: Series, prepare_returns: bool = True, periods: int | None = None
+) -> float: ...
+@overload
+def romad(
+    returns: DataFrame, prepare_returns: bool = True, periods: int | None = None
+) -> Series: ...
+def romad(
+    returns: Series | DataFrame,
+    prepare_returns: bool = True,
+    periods: int | None = None,
+) -> float | Series:
+    """Alias for `calmar`; RoMaD is return over max drawdown."""
+    return calmar(returns=returns, prepare_returns=prepare_returns, periods=periods)
 
 
 def autocorr_penalty(returns: Series | DataFrame, prepare_returns=False) -> float:
