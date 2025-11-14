@@ -140,7 +140,7 @@ def sortino(
 def adjusted_sortino(
     returns: Series,
     rf: float = 0.0,
-    periods: int = 252,
+    periods: int = 365,
     annualize: bool = True,
     smart: bool = False,
 ) -> float: ...
@@ -148,14 +148,14 @@ def adjusted_sortino(
 def adjusted_sortino(
     returns: DataFrame,
     rf: float = 0.0,
-    periods: int = 252,
+    periods: int = 365,
     annualize: bool = True,
     smart: bool = False,
 ) -> Series: ...
 def adjusted_sortino(
     returns: Series | DataFrame,
     rf: float = 0.0,
-    periods: int = 252,
+    periods: int = 365,
     annualize: bool = True,
     smart: bool = False,
 ) -> float | Series:
