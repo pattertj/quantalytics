@@ -239,3 +239,181 @@ def test_expectancy_series_and_dataframe(sample_returns):
     result = metrics.expectancy(df)
     assert isinstance(result, pd.Series)
     assert result["a"] == pytest.approx(expected)
+
+
+def test_outlier_win_ratio(sample_returns):
+    """Test outlier win ratio calculation."""
+    quantile = 0.99
+    normalized = timeseries_utils.normalize_returns(sample_returns)
+    positive = normalized[normalized >= 0]
+    expected = normalized.quantile(quantile) / positive.mean()
+    result = metrics.outlier_win_ratio(sample_returns, quantile=quantile)
+    assert result == pytest.approx(expected)
+
+    # Test with DataFrame
+    df = pd.DataFrame({"a": sample_returns, "b": sample_returns * 1.5})
+    result_df = metrics.outlier_win_ratio(df, quantile=quantile)
+    assert isinstance(result_df, pd.Series)
+    assert len(result_df) == 2
+
+
+def test_outlier_win_ratio_no_positive_returns():
+    """Test outlier win ratio with no positive returns."""
+    negative_only = pd.Series([-0.01, -0.02, -0.03])
+    result = metrics.outlier_win_ratio(negative_only, prepare_returns=False)
+    assert result == float("inf")
+
+
+def test_outlier_loss_ratio(sample_returns):
+    """Test outlier loss ratio calculation."""
+    quantile = 0.01
+    normalized = timeseries_utils.normalize_returns(sample_returns)
+    negative = normalized[normalized < 0]
+    expected = normalized.quantile(quantile) / negative.mean()
+    result = metrics.outlier_loss_ratio(sample_returns, quantile=quantile)
+    assert result == pytest.approx(expected)
+
+    # Test with DataFrame
+    df = pd.DataFrame({"a": sample_returns, "b": sample_returns * 1.5})
+    result_df = metrics.outlier_loss_ratio(df, quantile=quantile)
+    assert isinstance(result_df, pd.Series)
+    assert len(result_df) == 2
+
+
+def test_outlier_loss_ratio_no_negative_returns():
+    """Test outlier loss ratio with no negative returns."""
+    positive_only = pd.Series([0.01, 0.02, 0.03])
+    result = metrics.outlier_loss_ratio(positive_only, prepare_returns=False)
+    assert result == float("-inf")
+
+
+def test_outlier_ratios_measure_tail_risk():
+    """Test that outlier ratios correctly measure tail risk."""
+    # Series with extreme outlier win
+    outlier_win_series = pd.Series([0.01, 0.01, 0.01, 0.50])  # Last value is outlier
+    win_ratio = metrics.outlier_win_ratio(
+        outlier_win_series, quantile=0.95, prepare_returns=False
+    )
+    assert win_ratio > 1.0  # Outlier should be much larger than mean
+
+    # Series with extreme outlier loss
+    outlier_loss_series = pd.Series(
+        [-0.01, -0.01, -0.01, -0.50]
+    )  # Last value is outlier
+    loss_ratio = metrics.outlier_loss_ratio(
+        outlier_loss_series, quantile=0.05, prepare_returns=False
+    )
+    assert loss_ratio > 1.0  # Both negative, ratio should be > 1
+
+
+def test_recovery_factor(sample_returns):
+    """Test recovery factor calculation."""
+    normalized = timeseries_utils.normalize_returns(sample_returns)
+    total_returns = normalized.sum()
+    max_dd = stats.max_drawdown(sample_returns)
+    expected = abs(total_returns) / abs(max_dd)
+    result = metrics.recovery_factor(sample_returns)
+    assert result == pytest.approx(expected)
+
+    # Test with DataFrame
+    df = pd.DataFrame({"a": sample_returns, "b": sample_returns * 0.5})
+    result_df = metrics.recovery_factor(df)
+    assert isinstance(result_df, pd.Series)
+    assert len(result_df) == 2
+
+
+def test_recovery_factor_with_rf():
+    """Test recovery factor with risk-free rate."""
+    returns = pd.Series([0.05, -0.02, 0.03, 0.01])
+    rf = 0.01
+    normalized = timeseries_utils.normalize_returns(returns)
+    total_returns = normalized.sum() - rf
+    max_dd = stats.max_drawdown(returns)
+    expected = abs(total_returns) / abs(max_dd)
+    result = metrics.recovery_factor(returns, rf=rf)
+    assert result == pytest.approx(expected)
+
+
+def test_recovery_factor_zero_drawdown():
+    """Test recovery factor with zero drawdown."""
+    # Monotonically increasing returns (no drawdown)
+    increasing = pd.Series([0.01, 0.02, 0.03, 0.04])
+    result = metrics.recovery_factor(increasing, prepare_returns=False)
+    assert result == float("inf")
+
+    # Negative returns with zero drawdown should return -inf
+    decreasing_no_dd = pd.Series([0.0, 0.0, 0.0])
+    result_neg = metrics.recovery_factor(decreasing_no_dd, prepare_returns=False)
+    # With zero total returns and zero drawdown, should be inf
+    assert math.isinf(result_neg)
+
+
+def test_risk_return_ratio(sample_returns):
+    """Test risk-return ratio calculation."""
+    normalized = timeseries_utils.normalize_returns(sample_returns)
+    expected = normalized.mean() / normalized.std()
+    result = metrics.risk_return_ratio(sample_returns)
+    assert result == pytest.approx(expected)
+
+    # Test with DataFrame
+    df = pd.DataFrame({"a": sample_returns, "b": sample_returns * 1.2})
+    result_df = metrics.risk_return_ratio(df)
+    assert isinstance(result_df, pd.Series)
+    assert len(result_df) == 2
+
+
+def test_risk_return_ratio_vs_sharpe():
+    """Test that risk-return ratio is similar to Sharpe without rf adjustment."""
+    returns = pd.Series([0.01, -0.01, 0.02, -0.005, 0.015])
+    risk_return = metrics.risk_return_ratio(returns, prepare_returns=False)
+    # Sharpe with rf=0 and no annualization should be same
+    sharpe_no_rf = metrics.sharpe(returns, rf=0, periods=None, annualize=False)
+    assert risk_return == pytest.approx(sharpe_no_rf)
+
+
+def test_risk_return_ratio_zero_volatility():
+    """Test risk-return ratio with zero volatility."""
+    # All same positive value
+    constant_positive = pd.Series([0.01, 0.01, 0.01])
+    result_pos = metrics.risk_return_ratio(constant_positive, prepare_returns=False)
+    assert result_pos == float("inf")
+
+    # All same negative value
+    constant_negative = pd.Series([-0.01, -0.01, -0.01])
+    result_neg = metrics.risk_return_ratio(constant_negative, prepare_returns=False)
+    assert result_neg == float("-inf")
+
+
+def test_new_metrics_dataframe_consistency(sample_returns):
+    """Test that all new metrics handle DataFrame input consistently."""
+    df = pd.DataFrame(
+        {
+            "strategy_1": sample_returns,
+            "strategy_2": sample_returns * 1.5,
+            "strategy_3": sample_returns * 0.8,
+        }
+    )
+
+    # Test outlier_win_ratio
+    owr_result = metrics.outlier_win_ratio(df)
+    assert isinstance(owr_result, pd.Series)
+    assert len(owr_result) == 3
+    assert not owr_result.isna().any()
+
+    # Test outlier_loss_ratio
+    olr_result = metrics.outlier_loss_ratio(df)
+    assert isinstance(olr_result, pd.Series)
+    assert len(olr_result) == 3
+    assert not olr_result.isna().any()
+
+    # Test recovery_factor
+    rf_result = metrics.recovery_factor(df)
+    assert isinstance(rf_result, pd.Series)
+    assert len(rf_result) == 3
+    assert not rf_result.isna().any()
+
+    # Test risk_return_ratio
+    rrr_result = metrics.risk_return_ratio(df)
+    assert isinstance(rrr_result, pd.Series)
+    assert len(rrr_result) == 3
+    assert not rrr_result.isna().any()

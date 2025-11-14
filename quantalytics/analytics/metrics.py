@@ -781,3 +781,214 @@ def cpc_index(
     if isinstance(normalized, DataFrame):
         return Series({col: _index(normalized[col]) for col in normalized.columns})
     return _index(normalized)
+
+
+def common_sense_ratio(returns, prepare_returns=True):
+    """Measures the common sense ratio (profit factor * tail ratio)"""
+    normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
+    return profit_factor(normalized) * tail_ratio(normalized)
+
+
+@overload
+def outlier_win_ratio(
+    returns: Series, quantile: float = 0.99, prepare_returns: bool = True
+) -> float: ...
+@overload
+def outlier_win_ratio(
+    returns: DataFrame, quantile: float = 0.99, prepare_returns: bool = True
+) -> Series: ...
+def outlier_win_ratio(
+    returns: Series | DataFrame, quantile: float = 0.99, prepare_returns: bool = True
+) -> float | Series:
+    """Calculate the outlier winners ratio of returns.
+
+    Measures the magnitude of extreme positive returns relative to average gains.
+    A higher ratio indicates that outlier wins are significantly larger than typical wins.
+
+    Args:
+        returns (Series | DataFrame): Portfolio returns data.
+        quantile (float, optional): Percentile to use for outlier threshold.
+            Defaults to 0.99 (99th percentile).
+        prepare_returns (bool, optional): Whether to normalize returns before calculation.
+            Defaults to True.
+
+    Returns:
+        float | Series: Outlier win ratio. Returns float for Series input,
+            Series for DataFrame input (one value per column).
+            Calculated as: quantile value / mean of positive returns.
+
+    Examples:
+        >>> returns = pd.Series([0.01, 0.02, -0.01, 0.15, 0.01])
+        >>> outlier_win_ratio(returns, quantile=0.95)
+        7.5  # The 95th percentile is much larger than average wins
+
+    Notes:
+        - Returns inf if there are no positive returns
+        - Higher values suggest that outlier wins drive performance
+        - Useful for understanding return distribution skewness
+    """
+    normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
+
+    if isinstance(normalized, Series):
+        positive_returns = normalized[normalized >= 0]
+        if len(positive_returns) == 0:
+            return float("inf")
+        return float(normalized.quantile(quantile) / positive_returns.mean())
+    else:
+        return normalized.apply(
+            lambda col: outlier_win_ratio(col, quantile, prepare_returns=False)
+        )
+
+
+@overload
+def outlier_loss_ratio(
+    returns: Series, quantile: float = 0.01, prepare_returns: bool = True
+) -> float: ...
+@overload
+def outlier_loss_ratio(
+    returns: DataFrame, quantile: float = 0.01, prepare_returns: bool = True
+) -> Series: ...
+def outlier_loss_ratio(
+    returns: Series | DataFrame, quantile: float = 0.01, prepare_returns: bool = True
+) -> float | Series:
+    """Calculate the outlier losers ratio of returns.
+
+    Measures the magnitude of extreme negative returns relative to average losses.
+    A higher ratio (closer to 0) indicates that outlier losses are not much worse
+    than typical losses. A lower ratio indicates severe tail risk.
+
+    Args:
+        returns (Series | DataFrame): Portfolio returns data.
+        quantile (float, optional): Percentile to use for outlier threshold.
+            Defaults to 0.01 (1st percentile, representing worst losses).
+        prepare_returns (bool, optional): Whether to normalize returns before calculation.
+            Defaults to True.
+
+    Returns:
+        float | Series: Outlier loss ratio. Returns float for Series input,
+            Series for DataFrame input (one value per column).
+            Calculated as: quantile value / mean of negative returns.
+
+    Examples:
+        >>> returns = pd.Series([0.01, 0.02, -0.01, -0.15, -0.01])
+        >>> outlier_loss_ratio(returns, quantile=0.05)
+        7.5  # The 5th percentile loss is much worse than average losses
+
+    Notes:
+        - Returns -inf if there are no negative returns
+        - Lower values indicate severe tail risk (large outlier losses)
+        - Both the quantile and mean will be negative
+        - Ratio will be positive (negative / negative)
+    """
+    normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
+
+    if isinstance(normalized, Series):
+        negative_returns = normalized[normalized < 0]
+        if len(negative_returns) == 0:
+            return float("-inf")
+        return float(normalized.quantile(quantile) / negative_returns.mean())
+    else:
+        return normalized.apply(
+            lambda col: outlier_loss_ratio(col, quantile, prepare_returns=False)
+        )
+
+
+@overload
+def recovery_factor(
+    returns: Series, rf: float = 0.0, prepare_returns: bool = True
+) -> float: ...
+@overload
+def recovery_factor(
+    returns: DataFrame, rf: float = 0.0, prepare_returns: bool = True
+) -> Series: ...
+def recovery_factor(
+    returns: Series | DataFrame, rf: float = 0.0, prepare_returns: bool = True
+) -> float | Series:
+    """Calculate the recovery factor of returns.
+
+    Measures how effectively a strategy recovers from drawdowns by comparing
+    total returns to the maximum drawdown. Higher values indicate better
+    recovery characteristics.
+
+    Args:
+        returns (Series | DataFrame): Portfolio returns data.
+        rf (float, optional): Risk-free rate to subtract from returns.
+            Defaults to 0.0.
+        prepare_returns (bool, optional): Whether to normalize returns before calculation.
+            Defaults to True.
+
+    Returns:
+        float | Series: Recovery factor. Returns float for Series input,
+            Series for DataFrame input (one value per column).
+            Calculated as: |total_returns - rf| / |max_drawdown|.
+
+    Examples:
+        >>> returns = pd.Series([0.02, -0.05, 0.03, 0.02])
+        >>> recovery_factor(returns)
+        2.0  # Recovered twice the maximum drawdown
+
+    Notes:
+        - Higher values indicate better recovery from losses
+        - A value of 1.0 means total return equals maximum drawdown
+        - Values > 1.0 indicate recovery exceeds drawdown depth
+        - Useful for evaluating resilience after losses
+    """
+    normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
+
+    if isinstance(normalized, Series):
+        total_returns = normalized.sum() - rf
+        # max_drawdown already normalizes returns internally
+        max_dd = max_drawdown(returns) if prepare_returns else max_drawdown(normalized)
+        if max_dd == 0:
+            return float("inf") if total_returns >= 0 else float("-inf")
+        return float(abs(total_returns) / abs(max_dd))
+    else:
+        return normalized.apply(
+            lambda col: recovery_factor(col, rf, prepare_returns=False)
+        )
+
+
+@overload
+def risk_return_ratio(returns: Series, prepare_returns: bool = True) -> float: ...
+@overload
+def risk_return_ratio(returns: DataFrame, prepare_returns: bool = True) -> Series: ...
+def risk_return_ratio(
+    returns: Series | DataFrame, prepare_returns: bool = True
+) -> float | Series:
+    """Calculate the risk-return ratio of returns.
+
+    Measures the return per unit of risk, similar to Sharpe ratio but without
+    accounting for the risk-free rate. This is the raw mean/volatility relationship.
+
+    Args:
+        returns (Series | DataFrame): Portfolio returns data.
+        prepare_returns (bool, optional): Whether to normalize returns before calculation.
+            Defaults to True.
+
+    Returns:
+        float | Series: Risk-return ratio. Returns float for Series input,
+            Series for DataFrame input (one value per column).
+            Calculated as: mean(returns) / std(returns).
+
+    Examples:
+        >>> returns = pd.Series([0.01, 0.02, -0.01, 0.03, 0.01])
+        >>> risk_return_ratio(returns)
+        1.5  # Mean return is 1.5x the standard deviation
+
+    Notes:
+        - Similar to Sharpe ratio but without risk-free rate adjustment
+        - Positive values indicate positive average returns
+        - Higher values indicate better risk-adjusted performance
+        - Not annualized by default
+    """
+    normalized = _utils.normalize_returns(data=returns) if prepare_returns else returns
+
+    if isinstance(normalized, Series):
+        std = normalized.std()
+        if std == 0:
+            return float("inf") if normalized.mean() > 0 else float("-inf")
+        return float(normalized.mean() / std)
+    else:
+        return normalized.apply(
+            lambda col: risk_return_ratio(col, prepare_returns=False)
+        )
