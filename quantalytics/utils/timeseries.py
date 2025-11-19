@@ -16,6 +16,47 @@ from pandas.core.tools.datetimes import to_datetime
 from quantalytics.analytics import stats as _stats
 
 
+def _infer_periods(returns: Series | DataFrame) -> int:
+    """Infer the number of periods per year from returns data
+
+    Attempts to determine the frequency of the returns data based on its index
+    and maps it to the appropriate number of periods per year.
+
+    Parameters
+    ----------
+    returns : Series or DataFrame
+        Return data with DateTimeIndex for frequency inference
+
+    Returns
+    -------
+    int
+        Number of periods per year based on inferred frequency:
+        - 365 for daily (D)
+        - 252 for business days (B)
+        - 52 for weekly (W)
+        - 12 for monthly (M)
+        - 4 for quarterly (Q)
+        Defaults to 252 if unable to infer frequency
+    """
+    mapping = None
+
+    # Try to calculate from DatetimeIndex
+    if hasattr(returns.index, "inferred_freq"):
+        freq_map = {
+            "D": 252,  # Daily
+            "B": 252,  # Business day
+            "W": 52,  # Weekly
+            "M": 12,  # Monthly
+            "Q": 4,  # Quarterly
+        }
+        freq_code = (
+            returns.index.inferred_freq[0] if returns.index.inferred_freq else "D"
+        )
+        mapping = freq_map.get(freq_code, 252)
+
+    return mapping or 252
+
+
 def _prepare_benchmark(
     benchmark: Series | DataFrame,
     period: DatetimeIndex | str = "max",

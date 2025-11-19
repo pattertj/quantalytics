@@ -1,11 +1,12 @@
 # Quantalytics
 
-![PyPI - Version](https://img.shields.io/pypi/v/quantalytics)
-![GitHub last commit](https://img.shields.io/github/last-commit/pattertj/quantalytics)
-![Codecov](https://img.shields.io/codecov/c/github/pattertj/quantalytics)
-![PyPI - Downloads](https://img.shields.io/pypi/dm/quantalytics)
-![PyPI - License](https://img.shields.io/pypi/l/quantalytics)
-![PyPI - Python Version](https://img.shields.io/pypi/pyversions/quantalytics)
+<p align="left">
+  <a href="https://pypi.org/project/quantalytics/"><img src="https://img.shields.io/pypi/v/quantalytics" alt="PyPI - Version"></a>
+  <a href="https://github.com/pattertj/quantalytics"><img src="https://img.shields.io/github/last-commit/pattertj/quantalytics" alt="GitHub last commit"></a>
+  <a href="https://img.shields.io/pypi/dm/quantalytics"><img src="https://img.shields.io/pypi/dm/quantalytics" alt="PyPI - Downloads"></a>
+  <a href="https://github.com/pattertj/quantalytics/blob/main/LICENSE"><img src="https://img.shields.io/pypi/l/quantalytics" alt="PyPI - License"></a>
+  <a href="https://pypi.org/project/quantalytics/"><img src="https://img.shields.io/pypi/pyversions/quantalytics" alt="PyPI - Python Version"></a>
+</p>
 
 Quantalytics is a fast, modern Python library for generating quantitative performance metrics, interactive charts, and publication-ready reports. It is designed for strategy researchers, portfolio managers, and data scientists who want an ergonomic toolchain without the overhead of large monolithic frameworks.
 

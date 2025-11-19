@@ -1,9 +1,11 @@
 import math
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from quantalytics.analytics import metrics, stats
+from quantalytics.reporting import metrics as reporting_metrics
 from quantalytics.utils import timeseries as timeseries_utils
 
 
@@ -955,10 +957,10 @@ def test_rolling_sharpe_basic(sample_returns):
 def test_rolling_sharpe_annualization(sample_returns):
     """Test rolling_sharpe annualization."""
     non_annualized = metrics.rolling_sharpe(
-        sample_returns, rolling_period=3, annualize=False, periods_per_year=252
+        sample_returns, rolling_period=3, annualize=False, periods=252
     )
     annualized = metrics.rolling_sharpe(
-        sample_returns, rolling_period=3, annualize=True, periods_per_year=252
+        sample_returns, rolling_period=3, annualize=True, periods=252
     )
 
     # Annualized should be scaled by sqrt(252)
@@ -971,11 +973,9 @@ def test_rolling_sharpe_annualization(sample_returns):
 
 def test_rolling_sharpe_rf_parameter(sample_returns):
     """Test rolling_sharpe with risk-free rate."""
-    rf_0 = metrics.rolling_sharpe(
-        sample_returns, rf=0.0, rolling_period=3, periods_per_year=252
-    )
+    rf_0 = metrics.rolling_sharpe(sample_returns, rf=0.0, rolling_period=3, periods=252)
     rf_2 = metrics.rolling_sharpe(
-        sample_returns, rf=0.02, rolling_period=3, periods_per_year=252
+        sample_returns, rf=0.02, rolling_period=3, periods=252
     )
 
     # Different rf should give different results
@@ -1075,10 +1075,10 @@ def test_rolling_sortino_basic(sample_returns):
 def test_rolling_sortino_annualization(sample_returns):
     """Test rolling_sortino annualization."""
     non_annualized = metrics.rolling_sortino(
-        sample_returns, rolling_period=3, annualize=False, periods_per_year=252
+        sample_returns, rolling_period=3, annualize=False, periods=252
     )
     annualized = metrics.rolling_sortino(
-        sample_returns, rolling_period=3, annualize=True, periods_per_year=252
+        sample_returns, rolling_period=3, annualize=True, periods=252
     )
 
     # Annualized should be scaled by sqrt(252)
@@ -1094,10 +1094,10 @@ def test_rolling_sortino_annualization(sample_returns):
 def test_rolling_sortino_rf_parameter(sample_returns):
     """Test rolling_sortino with risk-free rate."""
     rf_0 = metrics.rolling_sortino(
-        sample_returns, rf=0.0, rolling_period=3, periods_per_year=252
+        sample_returns, rf=0.0, rolling_period=3, periods=252
     )
     rf_2 = metrics.rolling_sortino(
-        sample_returns, rf=0.02, rolling_period=3, periods_per_year=252
+        sample_returns, rf=0.02, rolling_period=3, periods=252
     )
 
     # Different rf should give different results
@@ -1186,9 +1186,10 @@ def test_rolling_sortino_higher_than_sharpe():
         ).sum() > 0
 
 
-def test_rolling_sortino_rf_validation():
-    """Test that rolling_sortino raises error when rf != 0 and rolling_period is None."""
-    returns = pd.Series([0.01, -0.02, 0.03])
-
-    with pytest.raises(ValueError, match="Must provide periods if rf != 0"):
-        metrics.rolling_sortino(returns, rf=0.02, rolling_period=None)
+def test_performance_metrics_helpers_handle_invalid_inputs(sample_returns):
+    summary = reporting_metrics.performance_summary(sample_returns)
+    assert math.isnan(summary._coerce_numeric(pd.Series(dtype=float)))
+    assert math.isnan(summary._coerce_numeric("not-a-number"))  # ty: ignore
+    assert summary._coerce_numeric(pd.Series([0.05])) == pytest.approx(0.05)
+    assert summary._format_metric(float("nan")) == "N/A"
+    assert summary._format_days(float("nan")) == "0 days"

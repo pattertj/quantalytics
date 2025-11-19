@@ -37,17 +37,24 @@ def cumulative_returns_chart(
     returns: Iterable[float] | pd.Series,
     title: str = "Cumulative Returns",
     benchmark: Optional[pd.Series] = None,
+    log_scale: bool = False,
 ) -> go.Figure:
     """Create a cumulative returns chart."""
 
     series = ensure_datetime_index(_validate_returns(returns))
     cum = compsum(series)
 
+    def _prepare_trace_data(series: pd.Series) -> pd.Series:
+        if not log_scale:
+            return series
+        safe = (1 + series).clip(lower=1e-6)
+        return safe
+
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
             x=cum.index,
-            y=cum,
+            y=_prepare_trace_data(cum),
             mode="lines",
             name="Strategy",
             line=dict(color=_COLOR_ACCENT),
@@ -60,7 +67,7 @@ def cumulative_returns_chart(
         fig.add_trace(
             go.Scatter(
                 x=benchmark_cum.index,
-                y=benchmark_cum,
+                y=_prepare_trace_data(benchmark_cum),
                 mode="lines",
                 name="Benchmark",
                 line=dict(color=_COLOR_MUTED, dash="dash"),
@@ -71,6 +78,7 @@ def cumulative_returns_chart(
         title=title,
         xaxis_title="Date",
         yaxis_title="Cumulative Return",
+        yaxis=dict(type="log" if log_scale else "linear"),
         template="plotly_white",
         hovermode="x unified",
     )

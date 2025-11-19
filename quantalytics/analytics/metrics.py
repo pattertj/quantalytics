@@ -20,13 +20,20 @@ from quantalytics.analytics.stats import (
     win_rate,
 )
 from quantalytics.utils import timeseries as _utils
+from quantalytics.utils.timeseries import _infer_periods
+
+
+def _coerce_periods(value: float | int | None) -> int | None:
+    if value is None:
+        return None
+    return int(value)
 
 
 @overload
 def sharpe(
     returns: Series,
     rf: float = 0,
-    periods: Optional[int] = 365,
+    periods: float | None = None,
     annualize: bool = True,
     smart: bool = ...,
 ) -> float: ...
@@ -34,14 +41,14 @@ def sharpe(
 def sharpe(
     returns: DataFrame,
     rf: float = 0,
-    periods: Optional[int] = 365,
+    periods: float | None = None,
     annualize: bool = True,
     smart: bool = ...,
 ) -> Series: ...
 def sharpe(
     returns: Series | DataFrame,
     rf: float = 0,
-    periods: Optional[int] = 365,
+    periods: float | None = None,
     annualize: bool = True,
     smart: bool = False,
 ) -> float | Series:
@@ -63,8 +70,9 @@ def sharpe(
     if rf != 0 and periods is None:
         raise ValueError("When rf is non-zero, periods must be specified")
 
+    normalized_periods = _coerce_periods(periods)
     returns: Series | DataFrame = _utils.normalize_returns(
-        data=returns, rf=rf, nperiods=periods
+        data=returns, rf=rf, nperiods=normalized_periods
     )
     divisor = returns.std(ddof=1)
 
@@ -74,7 +82,9 @@ def sharpe(
 
     res = returns.mean() / divisor
 
-    return res * sqrt(1 if periods is None else periods) if annualize else res
+    periods = _infer_periods(returns) if periods is None else periods
+
+    return res * sqrt(periods) if annualize else res
 
 
 @overload
@@ -83,7 +93,7 @@ def rolling_sharpe(
     rf: float = 0.0,
     rolling_period: int | None = 126,
     annualize: bool = True,
-    periods_per_year: int = 252,
+    periods: float | None = None,
     prepare_returns: bool = True,
 ) -> Series: ...
 @overload
@@ -92,7 +102,7 @@ def rolling_sharpe(
     rf: float = 0.0,
     rolling_period: int | None = 126,
     annualize: bool = True,
-    periods_per_year: int = 252,
+    periods: float | None = None,
     prepare_returns: bool = True,
 ) -> DataFrame: ...
 def rolling_sharpe(
@@ -100,7 +110,7 @@ def rolling_sharpe(
     rf: float = 0.0,
     rolling_period: int | None = 126,
     annualize: bool = True,
-    periods_per_year: int = 252,
+    periods: float | None = None,
     prepare_returns: bool = True,
 ) -> Series | DataFrame:
     """Calculate rolling Sharpe ratio over a specified window.
@@ -117,7 +127,7 @@ def rolling_sharpe(
         rolling_period (int, optional): Rolling window size in periods.
             Defaults to 126 (~6 months of daily data).
         annualize (bool, optional): Whether to annualize the ratio. Defaults to True.
-        periods_per_year (int, optional): Number of periods per year for annualization.
+        periods (int, optional): Number of periods per year for annualization.
             Defaults to 252 (daily data).
         prepare_returns (bool, optional): Whether to normalize returns before calculation.
             Defaults to True.
@@ -143,14 +153,14 @@ def rolling_sharpe(
 
         >>> df = pd.DataFrame({"strategy_a": [0.01, -0.01, 0.02, 0.01],
         ...                    "strategy_b": [0.02, -0.02, 0.03, 0.01]})
-        >>> rolling_sharpe(df, rolling_period=3, periods_per_year=252)
+        >>> rolling_sharpe(df, rolling_period=3, periods=252)
         # Returns DataFrame with rolling Sharpe for both strategies
 
     Notes:
         - First (rolling_period - 1) values will be NaN
         - Useful for monitoring strategy performance over time
         - Captures regime changes and varying market conditions
-        - Annualization uses sqrt(periods_per_year) scaling
+        - Annualization uses sqrt(periods) scaling
         - When prepare_returns=True, adjusts for risk-free rate
         - Standard rolling window is 126 days (~6 months) or 63 days (~3 months)
 
@@ -177,7 +187,8 @@ def rolling_sharpe(
 
     # Annualize if requested
     if annualize:
-        res = res * _np.sqrt(1 if periods_per_year is None else periods_per_year)
+        periods = _infer_periods(returns) if periods is None else periods
+        res = res * _np.sqrt(periods)
 
     return res
 
@@ -188,7 +199,7 @@ def rolling_sortino(
     rf: float = 0.0,
     rolling_period: int | None = 126,
     annualize: bool = True,
-    periods_per_year: int = 252,
+    periods: float | None = None,
     prepare_returns: bool = True,
 ) -> Series: ...
 @overload
@@ -197,7 +208,7 @@ def rolling_sortino(
     rf: float = 0.0,
     rolling_period: int | None = 126,
     annualize: bool = True,
-    periods_per_year: int = 252,
+    periods: float | None = None,
     prepare_returns: bool = True,
 ) -> DataFrame: ...
 def rolling_sortino(
@@ -205,7 +216,7 @@ def rolling_sortino(
     rf: float = 0.0,
     rolling_period: int | None = 126,
     annualize: bool = True,
-    periods_per_year: int = 252,
+    periods: float | None = None,
     prepare_returns: bool = True,
 ) -> Series | DataFrame:
     """Calculate rolling Sortino ratio over a specified window.
@@ -222,7 +233,7 @@ def rolling_sortino(
         rolling_period (int, optional): Rolling window size in periods.
             Defaults to 126 (~6 months of daily data).
         annualize (bool, optional): Whether to annualize the ratio. Defaults to True.
-        periods_per_year (int, optional): Number of periods per year for annualization.
+        periods (int, optional): Number of periods per year for annualization.
             Defaults to 252 (daily data).
         prepare_returns (bool, optional): Whether to normalize returns before calculation.
             Defaults to True.
@@ -249,7 +260,7 @@ def rolling_sortino(
 
         >>> df = pd.DataFrame({"strategy_a": [0.01, -0.01, 0.02, 0.01],
         ...                    "strategy_b": [0.02, -0.02, 0.03, 0.01]})
-        >>> rolling_sortino(df, rolling_period=3, periods_per_year=252)
+        >>> rolling_sortino(df, rolling_period=3, periods=252)
         # Returns DataFrame with rolling Sortino for both strategies
 
     Notes:
@@ -257,7 +268,7 @@ def rolling_sortino(
         - Only penalizes downside volatility (returns below zero)
         - More forgiving than rolling Sharpe for strategies with positive skew
         - May return inf when window has no negative returns (zero downside)
-        - Annualization uses sqrt(periods_per_year) scaling
+        - Annualization uses sqrt(periods) scaling
         - Downside deviation calculated from squared negative returns only
         - Useful for monitoring asymmetric risk profiles over time
 
@@ -299,7 +310,8 @@ def rolling_sortino(
 
     # Annualize if requested
     if annualize:
-        res = res * _np.sqrt(1 if periods_per_year is None else periods_per_year)
+        periods = _infer_periods(returns) if periods is None else periods
+        res = res * _np.sqrt(periods)
 
     return res
 
@@ -308,7 +320,7 @@ def rolling_sortino(
 def sortino(
     returns: Series,
     rf: float = 0,
-    periods: Optional[int] = 365,
+    periods: Optional[int] = None,
     annualize: bool = True,
     smart: bool = ...,
 ) -> float: ...
@@ -316,14 +328,14 @@ def sortino(
 def sortino(
     returns: DataFrame,
     rf: float = 0,
-    periods: Optional[int] = 365,
+    periods: Optional[int] = None,
     annualize: bool = True,
     smart: bool = ...,
 ) -> Series: ...
 def sortino(
     returns: Series | DataFrame,
     rf: float = 0,
-    periods: Optional[int] = 365,
+    periods: Optional[int] = None,
     annualize: bool = True,
     smart: bool = False,
 ) -> float | Series:
@@ -338,9 +350,8 @@ def sortino(
     if rf != 0 and periods is None:
         raise ValueError("When rf is non-zero, periods must be specified")
 
-    returns: Series | DataFrame = _utils.normalize_returns(
-        data=returns, rf=rf, nperiods=periods
-    )
+    normalized_periods = _coerce_periods(periods)
+    returns = _utils.normalize_returns(data=returns, rf=rf, nperiods=normalized_periods)
 
     # Calculate downside deviation
     squared_neg = (returns[returns < 0] ** 2).sum() / len(returns)
@@ -360,14 +371,15 @@ def sortino(
     else:
         res = mean_returns / downside
 
-    return res * sqrt(1 if periods is None else periods) if annualize else res
+    annualize_periods = _infer_periods(returns) if periods is None else periods
+    return res * sqrt(annualize_periods) if annualize else res
 
 
 @overload
 def adjusted_sortino(
     returns: Series,
     rf: float = 0.0,
-    periods: int = 365,
+    periods: float | None = None,
     annualize: bool = True,
     smart: bool = False,
 ) -> float: ...
@@ -375,14 +387,14 @@ def adjusted_sortino(
 def adjusted_sortino(
     returns: DataFrame,
     rf: float = 0.0,
-    periods: int = 365,
+    periods: float | None = None,
     annualize: bool = True,
     smart: bool = False,
 ) -> Series: ...
 def adjusted_sortino(
     returns: Series | DataFrame,
     rf: float = 0.0,
-    periods: int = 365,
+    periods: float | None = None,
     annualize: bool = True,
     smart: bool = False,
 ) -> float | Series:
@@ -431,7 +443,14 @@ def adjusted_sortino(
         smart_sortino: Sortino with autocorrelation penalty
     """
     # Calculate standard Sortino ratio
-    data = sortino(returns, rf, periods=periods, annualize=annualize, smart=smart)
+    sortino_periods = _coerce_periods(periods)
+    data = sortino(
+        returns=returns,
+        rf=rf,
+        periods=sortino_periods,
+        annualize=annualize,
+        smart=smart,
+    )
 
     # Apply Schwager's adjustment factor
     return data / sqrt(2)
@@ -480,14 +499,13 @@ def romad(
 
 def autocorr_penalty(returns: Series | DataFrame, prepare_returns=False) -> float:
     """Metric to account for auto correlation"""
-    if prepare_returns:
-        returns = _utils.normalize_returns(returns)
+    normalized = _utils.normalize_returns(returns) if prepare_returns else returns
 
-    if isinstance(returns, DataFrame):
-        returns = returns[returns.columns[0]]
+    if isinstance(normalized, DataFrame):
+        returns = normalized[normalized.columns[0]]
 
-    num = len(returns)
-    coef = abs(corrcoef(returns[:-1], returns[1:])[0, 1])
+    num = len(normalized)
+    coef = abs(corrcoef(normalized[:-1], normalized[1:])[0, 1])
     corr = [((num - x) / num) * coef**x for x in range(1, num)]
     return sqrt(1 + 2 * sum(corr))
 
@@ -1367,20 +1385,20 @@ def risk_return_ratio(
 def smart_sharpe(
     returns: Series,
     rf: float = 0.0,
-    periods: Optional[int] = 365,
+    periods: float | None = None,
     annualize: bool = True,
 ) -> float: ...
 @overload
 def smart_sharpe(
     returns: DataFrame,
     rf: float = 0.0,
-    periods: Optional[int] = 365,
+    periods: float | None = None,
     annualize: bool = True,
 ) -> Series: ...
 def smart_sharpe(
     returns: Series | DataFrame,
     rf: float = 0.0,
-    periods: Optional[int] = 365,
+    periods: float | None = None,
     annualize: bool = True,
 ) -> float | Series:
     """Calculate the Smart Sharpe ratio with autocorrelation penalty.
@@ -1431,20 +1449,20 @@ def smart_sharpe(
 def smart_sortino(
     returns: Series,
     rf: float = 0.0,
-    periods: Optional[int] = 365,
+    periods: float | None = None,
     annualize: bool = True,
 ) -> float: ...
 @overload
 def smart_sortino(
     returns: DataFrame,
     rf: float = 0.0,
-    periods: Optional[int] = 365,
+    periods: float | None = None,
     annualize: bool = True,
 ) -> Series: ...
 def smart_sortino(
     returns: Series | DataFrame,
     rf: float = 0.0,
-    periods: Optional[int] = 365,
+    periods: float | None = None,
     annualize: bool = True,
 ) -> float | Series:
     """Calculate the Smart Sortino ratio with autocorrelation penalty.
@@ -1489,27 +1507,28 @@ def smart_sortino(
         smart_sharpe: Sharpe ratio with autocorrelation penalty
         autocorr_penalty: The autocorrelation penalty calculation
     """
-    return sortino(returns, rf, periods, annualize, smart=True)
+    sortino_periods = _coerce_periods(periods)
+    return sortino(returns, rf, sortino_periods, annualize, smart=True)
 
 
 @overload
 def rar(
     returns: Series,
     rf: float = 0.0,
-    periods: int = 365,
+    periods: float | None = None,
     prepare_returns: bool = True,
 ) -> float: ...
 @overload
 def rar(
     returns: DataFrame,
     rf: float = 0.0,
-    periods: int = 365,
+    periods: float | None = None,
     prepare_returns: bool = True,
 ) -> Series: ...
 def rar(
     returns: Series | DataFrame,
     rf: float = 0.0,
-    periods: int = 365,
+    periods: float | None = None,
     prepare_returns: bool = True,
 ) -> float | Series:
     """Calculate the Risk-Adjusted Return (RAR) accounting for market exposure.
@@ -1552,17 +1571,18 @@ def rar(
     """
     normalized = _utils.normalize_returns(returns, rf) if prepare_returns else returns
     exp = exposure(normalized)
+    cagr_periods = _coerce_periods(periods)
 
     # Handle zero exposure edge case
     if isinstance(exp, Series):
         # For DataFrame input, handle zero exposure per column
-        result = cagr(returns=normalized, periods=periods) / exp
+        result = cagr(returns=normalized, periods=cagr_periods) / exp
         return result.replace([_np.inf, -_np.inf], _np.nan)
     else:
         # For Series input
         if exp == 0:
             return float("nan")
-        return cagr(returns=normalized, periods=periods) / exp
+        return cagr(returns=normalized, periods=cagr_periods) / exp
 
 
 @overload

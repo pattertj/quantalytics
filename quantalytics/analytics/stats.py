@@ -12,6 +12,7 @@ from pandas.core.indexes.datetimes import DatetimeIndex
 from pandas.core.series import Series
 
 from quantalytics import utils as _utils
+from quantalytics.utils.timeseries import _infer_periods
 
 # ======== STATS ========
 
@@ -115,8 +116,7 @@ def expected_return(
     Returns the expected return for a given period
     by calculating the geometric holding period return
     """
-    if prepare_returns:
-        returns = _utils.normalize_returns(returns)
+    returns = _utils.normalize_returns(returns) if prepare_returns else returns
     returns = _utils.aggregate_returns(returns, aggregate, compounded)
     return prod(1 + returns, axis=0) ** (1 / len(returns)) - 1
 
@@ -173,8 +173,7 @@ def best(
     returns: Series | DataFrame, aggregate=None, compounded=True, prepare_returns=True
 ) -> float | Series:
     """Returns the best day/month/week/quarter/year's return"""
-    if prepare_returns:
-        returns = _utils.normalize_returns(returns)
+    returns = _utils.normalize_returns(returns) if prepare_returns else returns
     return _utils.aggregate_returns(returns, aggregate, compounded).max()
 
 
@@ -190,8 +189,7 @@ def worst(
     returns: Series | DataFrame, aggregate=None, compounded=True, prepare_returns=True
 ) -> float | Series:
     """Returns the worst day/month/week/quarter/year's return"""
-    if prepare_returns:
-        returns = _utils.normalize_returns(returns)
+    returns = _utils.normalize_returns(returns) if prepare_returns else returns
     return _utils.aggregate_returns(returns, aggregate, compounded).min()
 
 
@@ -207,8 +205,7 @@ def consecutive_wins(
     returns: Series | DataFrame, aggregate=None, compounded=True, prepare_returns=True
 ) -> int | Series:
     """Returns the maximum consecutive wins by day/month/week/quarter/year"""
-    if prepare_returns:
-        returns = _utils.normalize_returns(returns)
+    returns = _utils.normalize_returns(returns) if prepare_returns else returns
     returns = _utils.aggregate_returns(returns, aggregate, compounded) > 0
     return _utils._count_consecutive(returns).max()
 
@@ -228,8 +225,7 @@ def consecutive_losses(
     Returns the maximum consecutive losses by
     day/month/week/quarter/year
     """
-    if prepare_returns:
-        returns = _utils.normalize_returns(returns)
+    returns = _utils.normalize_returns(returns) if prepare_returns else returns
     returns = _utils.aggregate_returns(returns, aggregate, compounded) < 0
     return _utils._count_consecutive(returns).max()
 
@@ -240,8 +236,7 @@ def exposure(returns: Series, prepare_returns=True) -> float: ...
 def exposure(returns: DataFrame, prepare_returns=True) -> Series: ...
 def exposure(returns: Series | DataFrame, prepare_returns=True) -> float | Series:
     """Returns the market exposure time (returns != 0)"""
-    if prepare_returns:
-        returns = _utils.normalize_returns(returns)
+    returns = _utils.normalize_returns(returns) if prepare_returns else returns
 
     def _exposure(ret):
         """Returns the market exposure time (returns != 0)"""
@@ -275,8 +270,7 @@ def win_rate(
         except Exception:
             return 0.0
 
-    if prepare_returns:
-        returns = _utils.normalize_returns(returns)
+    returns = _utils.normalize_returns(returns) if prepare_returns else returns
     if aggregate:
         returns = _utils.aggregate_returns(returns, aggregate, compounded)
 
@@ -302,8 +296,7 @@ def avg_return(
     returns: Series | DataFrame, aggregate=None, compounded=True, prepare_returns=True
 ) -> float | Series:
     """Calculates the average return/trade return for a period"""
-    if prepare_returns:
-        returns = _utils.normalize_returns(returns)
+    returns = _utils.normalize_returns(returns) if prepare_returns else returns
     if aggregate:
         returns = _utils.aggregate_returns(returns, aggregate, compounded)
     return returns[returns != 0].dropna().mean()
@@ -324,8 +317,7 @@ def avg_win(
     Calculates the average winning
     return/trade return for a period
     """
-    if prepare_returns:
-        returns = _utils.normalize_returns(returns)
+    returns = _utils.normalize_returns(returns) if prepare_returns else returns
     if aggregate:
         returns = _utils.aggregate_returns(returns, aggregate, compounded)
     return returns[returns > 0].dropna().mean()
@@ -346,8 +338,7 @@ def avg_loss(
     Calculates the average low if
     return/trade return for a period
     """
-    if prepare_returns:
-        returns = _utils.normalize_returns(returns)
+    returns = _utils.normalize_returns(returns) if prepare_returns else returns
     if aggregate:
         returns = _utils.aggregate_returns(returns, aggregate, compounded)
     return returns[returns < 0].dropna().mean()
@@ -355,32 +346,53 @@ def avg_loss(
 
 @overload
 def volatility(
-    returns: Series, periods=365, annualize=True, prepare_returns=True
+    returns: Series, periods: float | None = None, annualize=True, prepare_returns=True
 ) -> float: ...
 @overload
 def volatility(
-    returns: DataFrame, periods=365, annualize=True, prepare_returns=True
+    returns: DataFrame,
+    periods: float | None = None,
+    annualize=True,
+    prepare_returns=True,
 ) -> Series: ...
 def volatility(
-    returns: Series | DataFrame, periods=365, annualize=True, prepare_returns=True
+    returns: Series | DataFrame,
+    periods: float | None = None,
+    annualize=True,
+    prepare_returns=True,
 ) -> float | Series:
     """Calculates the volatility of returns for a period"""
-    if prepare_returns:
-        returns = _utils.normalize_returns(returns)
-    std = returns.std()
-    return std * _np.sqrt(periods) if annualize else std
+    normalized = _utils.normalize_returns(returns) if prepare_returns else returns
+
+    std = normalized.std()
+
+    if not annualize:
+        return std
+
+    periods = periods or _infer_periods(normalized)
+
+    return std * _np.sqrt(periods)
 
 
 @overload
 def rolling_volatility(
-    returns: Series, rolling_period=126, periods=365, prepare_returns=True
+    returns: Series,
+    rolling_period=126,
+    periods: float | None = None,
+    prepare_returns=True,
 ) -> Series: ...
 @overload
 def rolling_volatility(
-    returns: DataFrame, rolling_period=126, periods=365, prepare_returns=True
+    returns: DataFrame,
+    rolling_period=126,
+    periods: float | None = None,
+    prepare_returns=True,
 ) -> DataFrame: ...
 def rolling_volatility(
-    returns: Series | DataFrame, rolling_period=126, periods=365, prepare_returns=True
+    returns: Series | DataFrame,
+    rolling_period=126,
+    periods: float | None = None,
+    prepare_returns=True,
 ) -> Series | DataFrame:
     """Calculates the rolling volatility of returns for a period
     Args:
@@ -388,26 +400,37 @@ def rolling_volatility(
         * rolling_period (int): Rolling period
         * periods: periods per year
     """
-    if prepare_returns:
-        returns = _utils.normalize_returns(returns, rolling_period)
+    returns = (
+        _utils.normalize_returns(returns, nperiods=rolling_period)
+        if prepare_returns
+        else returns
+    )
+
+    periods = periods or _infer_periods(returns)
 
     return returns.rolling(rolling_period).std() * _np.sqrt(periods)
 
 
 @overload
-def implied_volatility(returns: Series, periods=365, annualize=True) -> Series: ...
+def implied_volatility(
+    returns: Series, periods: float | None = None, annualize=True
+) -> Series: ...
 @overload
 def implied_volatility(
-    returns: DataFrame, periods=365, annualize=True
+    returns: DataFrame, periods: float | None = None, annualize=True
 ) -> DataFrame: ...
 def implied_volatility(
-    returns: Series | DataFrame, periods=365, annualize=True
+    returns: Series | DataFrame, periods: float | None = None, annualize=True
 ) -> Series | DataFrame:
     """Calculates the implied volatility of returns for a period"""
     logret = _utils.log_returns(returns)
-    if annualize:
-        return logret.rolling(periods).std() * _np.sqrt(periods)
-    return logret.std()
+
+    if not annualize:
+        return logret.std()
+
+    periods = periods or _infer_periods(returns)
+
+    return logret.rolling(periods).std() * _np.sqrt(periods)
 
 
 @overload
@@ -630,6 +653,17 @@ def drawdown_details(drawdown: Series | DataFrame) -> DataFrame:
 
     def _drawdown_details(drawdown_series: Series) -> DataFrame:
         """Calculate drawdown details for a single drawdown series."""
+        columns = (
+            "start",
+            "valley",
+            "end",
+            "days",
+            "max drawdown",
+            "99% max drawdown",
+        )
+
+        if drawdown_series.empty:
+            return _pd.DataFrame(index=[], columns=columns)
         # Mark periods with no drawdown (drawdown = 0)
         no_dd = drawdown_series == 0
 

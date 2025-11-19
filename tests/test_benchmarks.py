@@ -3,6 +3,7 @@ import pandas as pd
 import pytest
 
 from quantalytics.analytics import benchmarks
+from quantalytics.utils import timeseries as _utils
 
 
 @pytest.fixture
@@ -77,6 +78,22 @@ class TestRSquared:
         result = benchmarks.r_squared(returns, benchmark)
         assert result == 0.0
 
+    def test_r_squared_handles_constant_index(self):
+        """Return zero when the normalized index contains only one unique value."""
+        dates = pd.DatetimeIndex([pd.Timestamp("2024-01-01")] * 5)
+        returns = pd.Series([0.01, 0.02, 0.0, -0.005, 0.015], index=dates)
+        benchmark = pd.Series([0.02, 0.015, 0.01, -0.005, 0.01], index=dates)
+        result = benchmarks.r_squared(returns, benchmark)
+        assert result == 0.0
+
+    def test_r_squared_handles_constant_benchmark(self):
+        """Return zero when benchmark values are identical but returns vary."""
+        dates = pd.date_range("2024-01-01", periods=5, freq="D")
+        returns = pd.Series([0.01, -0.01, 0.02, -0.005, 0.015], index=dates)
+        benchmark = pd.Series([0.02] * 5, index=dates)
+        result = benchmarks.r_squared(returns, benchmark)
+        assert result == 0.0
+
     def test_r_squared_series_only(self, sample_returns, sample_benchmark):
         """Test r_squared works with Series input."""
         result = benchmarks.r_squared(sample_returns, sample_benchmark)
@@ -106,6 +123,115 @@ class TestR2:
         result = benchmarks.r2(sample_returns, sample_benchmark)
         assert isinstance(result, float)
         assert 0 <= result <= 1
+
+
+class TestBenchmarkCorrelation:
+    """Ensure benchmark_correlation handles DataFrame results."""
+
+    def test_handles_dataframe_benchmark_from_prepare(
+        self, sample_returns, sample_benchmark, monkeypatch
+    ):
+        def _fake_prepare(benchmark, period):
+            return pd.DataFrame({"data": benchmark.values}, index=period)
+
+        monkeypatch.setattr(_utils, "_prepare_benchmark", _fake_prepare)
+        result = benchmarks.benchmark_correlation(sample_returns, sample_benchmark)
+        assert isinstance(result, float)
+
+    def test_benchmark_correlation_basic(self, sample_returns, sample_benchmark):
+        """Test basic benchmark correlation calculation."""
+        result = benchmarks.benchmark_correlation(sample_returns, sample_benchmark)
+        assert isinstance(result, float)
+        assert -1 <= result <= 1
+
+    def test_benchmark_correlation_perfect_positive(self):
+        """Test correlation with perfectly correlated returns."""
+        dates = pd.date_range("2024-01-01", periods=50, freq="D")
+        returns = pd.Series(np.random.randn(50) * 0.02, index=dates)
+        benchmark = returns.copy()
+        result = benchmarks.benchmark_correlation(
+            returns, benchmark, prepare_returns=False
+        )
+        assert result == pytest.approx(1.0)
+
+    def test_benchmark_correlation_perfect_negative(self):
+        """Test correlation with perfectly negatively correlated returns."""
+        dates = pd.date_range("2024-01-01", periods=50, freq="D")
+        returns = pd.Series(np.random.randn(50) * 0.02, index=dates)
+        benchmark = -returns
+        result = benchmarks.benchmark_correlation(
+            returns, benchmark, prepare_returns=False
+        )
+        assert result == pytest.approx(-1.0)
+
+    def test_benchmark_correlation_high_positive(
+        self, correlated_returns, sample_benchmark
+    ):
+        """Test correlation with highly correlated returns."""
+        result = benchmarks.benchmark_correlation(correlated_returns, sample_benchmark)
+        assert result > 0.8
+
+    def test_benchmark_correlation_dataframe_returns_series(
+        self, sample_dataframe_returns, sample_benchmark
+    ):
+        """Test that benchmark_correlation returns Series for DataFrame input."""
+        result = benchmarks.benchmark_correlation(
+            sample_dataframe_returns, sample_benchmark
+        )
+        assert isinstance(result, pd.Series)
+        assert len(result) == 2
+        assert "strategy_1" in result.index
+        assert "strategy_2" in result.index
+        assert all(-1 <= corr <= 1 for corr in result)
+
+    def test_benchmark_correlation_no_prepare_returns(
+        self, sample_returns, sample_benchmark
+    ):
+        """Test benchmark_correlation with prepare_returns=False."""
+        result = benchmarks.benchmark_correlation(
+            sample_returns, sample_benchmark, prepare_returns=False
+        )
+        assert isinstance(result, float)
+        assert -1 <= result <= 1
+
+    def test_benchmark_correlation_vs_pandas_corr(self):
+        """Test that benchmark_correlation matches pandas corr."""
+        dates = pd.date_range("2024-01-01", periods=100, freq="D")
+        np.random.seed(999)
+        returns = pd.Series(np.random.randn(100) * 0.02, index=dates)
+        benchmark = pd.Series(np.random.randn(100) * 0.015, index=dates)
+        result = benchmarks.benchmark_correlation(
+            returns, benchmark, prepare_returns=False
+        )
+        expected = returns.corr(benchmark)
+        assert result == pytest.approx(expected)
+
+    def test_benchmark_correlation_independent_returns(self):
+        """Test correlation with independent (uncorrelated) returns."""
+        dates = pd.date_range("2024-01-01", periods=100, freq="D")
+        np.random.seed(111)
+        returns = pd.Series(np.random.randn(100) * 0.02, index=dates)
+        np.random.seed(222)
+        benchmark = pd.Series(np.random.randn(100) * 0.015, index=dates)
+        result = benchmarks.benchmark_correlation(
+            returns, benchmark, prepare_returns=False
+        )
+        assert abs(result) < 0.3
+
+    def test_benchmark_correlation_benchmark_as_dataframe(self):
+        """Test using DataFrame as benchmark."""
+        dates = pd.date_range("2024-01-01", periods=50, freq="D")
+        returns = pd.Series(np.random.randn(50) * 0.02, index=dates)
+        benchmark_df = pd.DataFrame({"bench": np.random.randn(50) * 0.015}, index=dates)
+        result = benchmarks.benchmark_correlation(returns, benchmark_df)
+        assert isinstance(result, float)
+        assert -1 <= result <= 1
+
+    def test_benchmark_correlation_series_input(self, sample_returns, sample_benchmark):
+        """Test that benchmark_correlation works with Series input."""
+        result = benchmarks.benchmark_correlation(sample_returns, sample_benchmark)
+        assert isinstance(result, float)
+        assert not np.isnan(result)
 
 
 class TestInformationRatio:
@@ -498,114 +624,3 @@ class TestTreynorRatio:
             sample_returns, sample_benchmark, prepare_returns=False
         )
         assert isinstance(result, float)
-
-
-class TestBenchmarkCorrelation:
-    """Tests for benchmark_correlation function."""
-
-    def test_benchmark_correlation_basic(self, sample_returns, sample_benchmark):
-        """Test basic benchmark correlation calculation."""
-        result = benchmarks.benchmark_correlation(sample_returns, sample_benchmark)
-        assert isinstance(result, float)
-        assert -1 <= result <= 1
-
-    def test_benchmark_correlation_perfect_positive(self):
-        """Test correlation with perfectly correlated returns."""
-        dates = pd.date_range("2024-01-01", periods=50, freq="D")
-        returns = pd.Series(np.random.randn(50) * 0.02, index=dates)
-        # Benchmark is identical to returns
-        benchmark = returns.copy()
-
-        result = benchmarks.benchmark_correlation(
-            returns, benchmark, prepare_returns=False
-        )
-        assert result == pytest.approx(1.0)
-
-    def test_benchmark_correlation_perfect_negative(self):
-        """Test correlation with perfectly negatively correlated returns."""
-        dates = pd.date_range("2024-01-01", periods=50, freq="D")
-        returns = pd.Series(np.random.randn(50) * 0.02, index=dates)
-        # Benchmark is exact opposite
-        benchmark = -returns
-
-        result = benchmarks.benchmark_correlation(
-            returns, benchmark, prepare_returns=False
-        )
-        assert result == pytest.approx(-1.0)
-
-    def test_benchmark_correlation_high_positive(
-        self, correlated_returns, sample_benchmark
-    ):
-        """Test correlation with highly correlated returns."""
-        result = benchmarks.benchmark_correlation(correlated_returns, sample_benchmark)
-        # Should be high positive correlation (created with 1.2x multiplier + noise)
-        assert result > 0.8
-
-    def test_benchmark_correlation_dataframe_returns_series(
-        self, sample_dataframe_returns, sample_benchmark
-    ):
-        """Test that benchmark_correlation returns Series for DataFrame input."""
-        result = benchmarks.benchmark_correlation(
-            sample_dataframe_returns, sample_benchmark
-        )
-        assert isinstance(result, pd.Series)
-        assert len(result) == 2
-        assert "strategy_1" in result.index
-        assert "strategy_2" in result.index
-        # All correlations should be in valid range
-        assert all(-1 <= corr <= 1 for corr in result)
-
-    def test_benchmark_correlation_no_prepare_returns(
-        self, sample_returns, sample_benchmark
-    ):
-        """Test benchmark_correlation with prepare_returns=False."""
-        result = benchmarks.benchmark_correlation(
-            sample_returns, sample_benchmark, prepare_returns=False
-        )
-        assert isinstance(result, float)
-        assert -1 <= result <= 1
-
-    def test_benchmark_correlation_vs_pandas_corr(self):
-        """Test that benchmark_correlation matches pandas corr."""
-        dates = pd.date_range("2024-01-01", periods=100, freq="D")
-        np.random.seed(999)
-        returns = pd.Series(np.random.randn(100) * 0.02, index=dates)
-        benchmark = pd.Series(np.random.randn(100) * 0.015, index=dates)
-
-        result = benchmarks.benchmark_correlation(
-            returns, benchmark, prepare_returns=False
-        )
-        expected = returns.corr(benchmark)
-
-        assert result == pytest.approx(expected)
-
-    def test_benchmark_correlation_independent_returns(self):
-        """Test correlation with independent (uncorrelated) returns."""
-        dates = pd.date_range("2024-01-01", periods=100, freq="D")
-        np.random.seed(111)
-        returns = pd.Series(np.random.randn(100) * 0.02, index=dates)
-        np.random.seed(222)
-        benchmark = pd.Series(np.random.randn(100) * 0.015, index=dates)
-
-        result = benchmarks.benchmark_correlation(
-            returns, benchmark, prepare_returns=False
-        )
-
-        # Should be close to 0 for independent random returns
-        assert abs(result) < 0.3
-
-    def test_benchmark_correlation_benchmark_as_dataframe(self):
-        """Test using DataFrame as benchmark."""
-        dates = pd.date_range("2024-01-01", periods=50, freq="D")
-        returns = pd.Series(np.random.randn(50) * 0.02, index=dates)
-        benchmark_df = pd.DataFrame({"bench": np.random.randn(50) * 0.015}, index=dates)
-
-        result = benchmarks.benchmark_correlation(returns, benchmark_df)
-        assert isinstance(result, float)
-        assert -1 <= result <= 1
-
-    def test_benchmark_correlation_series_input(self, sample_returns, sample_benchmark):
-        """Test that benchmark_correlation works with Series input."""
-        result = benchmarks.benchmark_correlation(sample_returns, sample_benchmark)
-        assert isinstance(result, float)
-        assert not np.isnan(result)

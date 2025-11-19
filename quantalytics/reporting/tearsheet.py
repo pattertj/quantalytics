@@ -2,27 +2,41 @@
 
 from __future__ import annotations
 
-import json
 import math
-import re
-from dataclasses import dataclass, field
-from datetime import datetime
+from dataclasses import dataclass
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as package_version
 from pathlib import Path
-from typing import Iterable, List, Mapping, Optional, cast
+from typing import Any, Iterable, List, Mapping, Optional
 
-import numpy as np
+import narwhals as nw
 import pandas as pd
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2.environment import Template
+from narwhals._native import IntoSeries
 
-from quantalytics.reporting import performance_summary
+from quantalytics.analytics import rolling_sharpe, rolling_sortino
+from quantalytics.analytics.metrics import to_drawdown_series
+from quantalytics.analytics.stats import (
+    avg_loss,
+    avg_win,
+    best,
+    comp,
+    compsum,
+    drawdown_details,
+    expected_return,
+    rolling_volatility,
+    win_rate,
+    worst,
+)
 
-from ..analytics.stats import compsum
 from ..charts.timeseries import (
     cumulative_returns_chart,
     drawdown_chart,
     rolling_volatility_chart,
 )
-from ..utils.timeseries import ensure_datetime_index
+from .metric_registry import resolve_summary_specs
+from .metrics import monthly_returns, performance_summary
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 _TEMPLATE_ENV = Environment(
@@ -41,15 +55,6 @@ class TearsheetSection:
 
 
 @dataclass
-class TearsheetConfig:
-    """Configuration for customizing the tear sheet."""
-
-    title: str = "Strategy Tearsheet"
-    subtitle: Optional[str] = None
-    sections: List[TearsheetSection] = field(default_factory=list)
-
-
-@dataclass
 class Tearsheet:
     """Represents a rendered tear sheet."""
 
@@ -60,604 +65,601 @@ class Tearsheet:
         path.write_text(self.html, encoding="utf-8")
 
 
-def _figure_to_html(fig) -> str:
-    return fig.to_html(full_html=False, include_plotlyjs="cdn")
+def _package_version(name: str = "quantalytics") -> str:
+    try:
+        return package_version(name)
+    except PackageNotFoundError:
+        return "0.0.0"
 
 
-def render_basic_tearsheet(
-    returns: Iterable[float] | pd.Series,
-    benchmark: Optional[pd.Series] = None,
+def _scalar_value(value: float | pd.Series) -> float:
+    if isinstance(value, pd.Series):
+        if value.empty:
+            return float("nan")
+        return float(value.iloc[-1])
+    return float(value)
+
+
+def _format_date_iso(value) -> str:
+    try:
+        ts = pd.to_datetime(value, errors="coerce")
+        if pd.isna(ts):
+            raise ValueError
+        return ts.strftime("%Y-%m-%d")
+    except Exception:
+        return str(value)
+
+
+def _format_date_readable(value) -> str:
+    try:
+        ts = pd.to_datetime(value, errors="coerce")
+        if pd.isna(ts):
+            raise ValueError
+        return f"{ts.day} {ts:%b %Y}"
+    except Exception:
+        return str(value)
+
+
+def _format_index_dates(index) -> list[str]:
+    def _as_index(value):
+        if isinstance(value, pd.Timestamp):
+            return pd.DatetimeIndex([value])
+        return pd.DatetimeIndex(value)
+
+    try:
+        dates = _as_index(index)
+        dates = dates[~dates.isna()]
+        return dates.strftime("%Y-%m-%d").tolist()
+    except Exception:
+        converted = pd.to_datetime(index, errors="coerce")
+        dates = _as_index(converted)
+        dates = dates[~dates.isna()]
+        return dates.strftime("%Y-%m-%d").tolist()
+
+
+def _period_return(series: pd.Series, start: pd.Timestamp) -> float:
+    subset = series[series.index >= start]
+    if subset.empty:
+        return 0.0
+    return float(comp(returns=subset))
+
+
+@dataclass(frozen=True)
+class _SummarySpec:
+    key: str
+    label: str
+    tooltip: str | None = None
+    scale: float = 1.0
+    suffix: str = ""
+    decimals: int = 2
+
+
+SUMMARY_METRIC_CONFIG: dict[str, _SummarySpec] = {
+    "annualized_return": _SummarySpec(
+        key="annualized_return", label="CAGR", scale=100, suffix="%", decimals=2
+    ),
+    "sharpe": _SummarySpec(key="sharpe", label="Sharpe Ratio", decimals=2),
+    "max_drawdown": _SummarySpec(
+        key="max_drawdown", label="Max Drawdown", scale=100, suffix="%", decimals=2
+    ),
+    "win_rate": _SummarySpec(
+        key="win_rate", label="Win Rate", scale=100, suffix="%", decimals=2
+    ),
+    "romad": _SummarySpec(key="romad", label="RoMaD", decimals=2),
+    "sortino": _SummarySpec(key="sortino", label="Sortino", decimals=2),
+}
+DEFAULT_SUMMARY_KEYS: list[str] = list(SUMMARY_METRIC_CONFIG.keys())
+
+
+def _resolve_summary_specs(keys: Iterable[str] | None) -> list[_SummarySpec]:
+    requested = list(keys) if keys is not None else DEFAULT_SUMMARY_KEYS
+    specs: list[_SummarySpec] = []
+    for key in requested:
+        spec = SUMMARY_METRIC_CONFIG.get(key)
+        if spec is None:
+            raise ValueError(f"Unsupported summary stat '{key}'.")
+        specs.append(spec)
+    return specs
+
+
+def _format_summary_metric(value: Any, scale: float, decimals: int, suffix: str) -> str:
+    if value is None:
+        return "N/A"
+    try:
+        numeric = _scalar_value(value)
+    except Exception:
+        return "N/A"
+    numeric *= scale
+    if math.isnan(numeric):
+        return "N/A"
+    formatted = f"{numeric:.{decimals}f}"
+    return f"{formatted}{suffix}"
+
+
+@nw.narwhalify(eager_only=True)
+def html(
+    returns: IntoSeries,
+    title: str = "Strategy Tearsheet",
+    benchmark: Optional[IntoSeries] = None,
     risk_free_rate: float = 0.0,
-    target_return: float = 0.0,
-    periods_per_year: Optional[int | str] = None,
-    config: Optional[TearsheetConfig] = None,
+    periods: int | None = None,
+    log_scale: bool = False,
+    sections: List[TearsheetSection] | None = None,
+    header_logo: str | None = None,
+    parameters: Mapping[str, str] | None = None,
+    summary_stats: Iterable[str] | None = None,
 ) -> Tearsheet:
     """Render a high-level tear sheet from series of returns."""
 
-    series = pd.Series(returns)
-    periods = periods_per_year if isinstance(periods_per_year, int) else 252
+    pandas_returns = returns.to_pandas()
+    pandas_bench = benchmark.to_pandas() if benchmark else None
+
+    if pandas_returns.empty:
+        pandas_returns = pandas_returns.copy()
+        pandas_returns.index = pd.DatetimeIndex([])
+
+    coverage_text = "Data coverage unavailable"
+    if not pandas_returns.empty:
+        try:
+            dates = pd.DatetimeIndex(
+                pd.to_datetime(pandas_returns.index, errors="coerce")
+            )
+            dates = dates[~dates.isna()]
+            if dates.size:
+                coverage_text = f"{_format_date_readable(dates.min())} → {_format_date_readable(dates.max())}"
+        except Exception:
+            coverage_text = "Data coverage unavailable"
+
     metrics = performance_summary(
-        series,
+        returns=pandas_returns,
         risk_free_rate=risk_free_rate,
-        target_return=target_return,
         periods=periods,
     )
 
-    sections: list[TearsheetSection] = (
-        config.sections
-        if config
-        else [
-            TearsheetSection(
-                title="Cumulative Returns",
-                description=r"Growth of $1 invested in the strategy versus benchmark.",
-                figure_html=_figure_to_html(
-                    cumulative_returns_chart(series, benchmark=benchmark)
-                ),
+    metrics_dict = metrics.as_dict()
+    wins = int(metrics_dict.get("winning_days", 0))
+    losses = int(metrics_dict.get("losing_days", 0))
+    total = max(1, wins + losses)
+    metrics_dict["win_rate"] = wins / total
+    summary_specs = resolve_summary_specs(summary_stats)
+    summary_stat_cards = [
+        {
+            "label": spec.label,
+            "tooltip": spec.tooltip,
+            "value": _format_summary_metric(
+                metrics_dict.get(spec.value_key),
+                scale=spec.scale,
+                decimals=spec.decimals,
+                suffix=spec.suffix,
             ),
-            TearsheetSection(
-                title="Rolling Volatility",
-                description="Rolling measure of realized volatility.",
-                figure_html=_figure_to_html(rolling_volatility_chart(series)),
-            ),
-            TearsheetSection(
-                title="Drawdowns",
-                description="Depth and duration of drawdowns over time.",
-                figure_html=_figure_to_html(drawdown_chart(series)),
-            ),
-        ]
-    )
+        }
+        for spec in summary_specs
+    ]
 
-    template = _TEMPLATE_ENV.get_template("tearsheet.html")
+    summary_series = pd.Series(dtype=float)
+    summary_series.index = pd.DatetimeIndex([])
+
+    default_sections: list[TearsheetSection] = [
+        TearsheetSection(
+            title="Cumulative Returns",
+            description=r"Growth of $1 invested in the strategy versus benchmark.",
+            figure_html=_safe_chart(
+                cumulative_returns_chart,
+                returns=pandas_returns,
+                benchmark=pandas_bench,
+                log_scale=log_scale,
+            ),
+        ),
+        TearsheetSection(
+            title="Rolling Volatility",
+            description="Rolling measure of realized volatility.",
+            figure_html=_safe_chart(
+                rolling_volatility_chart,
+                returns=pandas_returns,
+            ),
+        ),
+        TearsheetSection(
+            title="Drawdowns",
+            description="Depth and duration of drawdowns over time.",
+            figure_html=_safe_chart(
+                drawdown_chart,
+                returns=pandas_returns,
+            ),
+        ),
+    ]
+    sections = list(sections) if sections is not None else default_sections
+
+    worst_drawdowns: list[dict] = []
+    eoy_rows: list[dict[str, float | str]] = []
+    eoy_years: list[str] = []
+    eoy_returns: list[float] = []
+    eoy_average: float = 0.0
+    per_year_best: list[float] = []
+    per_year_avg_up: list[float] = []
+    per_year_expected: list[float] = []
+    per_year_avg_down: list[float] = []
+    per_year_worst: list[float] = []
+    per_year_win_rate: list[float] = []
+    per_year_time_in_market: list[float] = []
+    rolling_vol_trimmed: list[float] = []
+    rolling_vol_dates_trimmed: list[str] = []
+    longest_drawdowns: list[dict[str, str]] = []
+    monthly_df = None
+    if not pandas_returns.empty:
+        try:
+            monthly_df = monthly_returns(
+                returns=pandas_returns,
+                eoy=False,
+                compounded=True,
+                prepare_returns=False,
+            )
+        except Exception:
+            monthly_df = None
+
+    if pandas_returns.empty or monthly_df is None:
+        heatmap_months = []
+        heatmap_years = []
+        heatmap_values = []
+        win_rate_periods = [
+            ("Day", None),
+            ("Week", "week"),
+            ("Month", "month"),
+            ("Quarter", "quarter"),
+            ("Year", "year"),
+        ]
+        win_rate_buckets = [name for name, _ in win_rate_periods]
+        win_rate_values = [0.0 for _ in win_rate_periods]
+        period_rows = []
+        daily_dates = []
+        daily_returns = []
+        eoy_rows = []
+        eoy_years = []
+        eoy_returns = []
+        eoy_average = 0.0
+        daily_dates: list[str] = []
+        daily_returns: list[float] = []
+        rolling_sharpe_values: list[float | None] = []
+        rolling_sortino_values: list[float | None] = []
+        rolling_sharpe_trimmed = []
+        rolling_sharpe_dates_trimmed: list[str] = []
+        rolling_sortino_trimmed = []
+        rolling_sortino_dates_trimmed: list[str] = []
+        underwater_series = []
+        rolling_sortino_values: list[float | None] = []
+    else:
+        heatmap_months = [month.capitalize() for month in monthly_df.columns]
+        heatmap_years = monthly_df.index.astype(str).tolist()
+        heatmap_values = (
+            (monthly_df.fillna(0) * 100).round(2).astype(float).values.tolist()
+        )
+        win_rate_periods = [
+            ("Day", None),
+            ("Week", "week"),
+            ("Month", "month"),
+            ("Quarter", "quarter"),
+            ("Year", "year"),
+        ]
+        win_rate_buckets = [name for name, _ in win_rate_periods]
+        win_rate_values = [
+            round(
+                win_rate(
+                    returns=pandas_returns,
+                    aggregate=agg,
+                    compounded=True,
+                    prepare_returns=False,
+                )
+                * 100,
+                2,
+            )
+            for _, agg in win_rate_periods
+        ]
+        sorted_returns = pandas_returns.sort_index()
+        first_date = sorted_returns.index[0]
+        last_date = sorted_returns.index[-1]
+        summary_series = compsum(sorted_returns)
+        if log_scale:
+            summary_series = (1 + summary_series).clip(lower=1e-6)
+        period_map = [
+            ("MTD", last_date - pd.DateOffset(months=1)),
+            ("3M", last_date - pd.DateOffset(months=3)),
+            ("6M", last_date - pd.DateOffset(months=6)),
+            ("YTD", last_date.replace(month=1, day=1)),
+            ("1Y", last_date - pd.DateOffset(years=1)),
+            ("3Y", last_date - pd.DateOffset(years=3)),
+            ("5Y", last_date - pd.DateOffset(years=5)),
+            ("10Y", last_date - pd.DateOffset(years=10)),
+            ("All-time", first_date),
+        ]
+        period_rows = []
+        for label, start in period_map:
+            start = max(start, first_date)
+            value = _period_return(series=sorted_returns, start=start)
+            period_rows.append({"label": label, "value": f"{value * 100:.2f}%"})
+        daily_dates = sorted_returns.index.strftime("%Y-%m-%d").tolist()
+        daily_returns = (sorted_returns * 100).round(2).tolist()
+        eoy_rows = []
+        per_year_best: list[float] = []
+        per_year_avg_up: list[float] = []
+        per_year_expected: list[float] = []
+        per_year_avg_down: list[float] = []
+        per_year_worst: list[float] = []
+        per_year_win_rate: list[float] = []
+        per_year_time_in_market: list[float] = []
+        for year, group in sorted_returns.groupby(sorted_returns.index.year):
+            year_return = comp(group)
+            period_start = group.index.min()
+            period_end = group.index.max()
+            period_days = max(1, (period_end - period_start).days + 1)
+            period_years = max(period_days / 365, 1 / 365)
+            year_cagr = (1 + year_return) ** (1 / period_years) - 1
+            per_year_best.append(
+                float(
+                    round(
+                        best(
+                            group,
+                            aggregate=None,
+                            compounded=True,
+                            prepare_returns=False,
+                        )
+                        * 100,
+                        2,
+                    )
+                )
+            )
+            per_year_avg_up.append(
+                float(
+                    round(
+                        avg_win(
+                            group,
+                            aggregate=None,
+                            compounded=True,
+                            prepare_returns=False,
+                        )
+                        * 100,
+                        2,
+                    )
+                )
+            )
+            per_year_expected.append(
+                float(
+                    round(
+                        expected_return(group, compounded=True, prepare_returns=False)
+                        * 100,
+                        2,
+                    )
+                )
+            )
+            per_year_avg_down.append(
+                float(
+                    round(
+                        avg_loss(
+                            group,
+                            aggregate=None,
+                            compounded=True,
+                            prepare_returns=False,
+                        )
+                        * 100,
+                        2,
+                    )
+                )
+            )
+            per_year_worst.append(
+                float(
+                    round(
+                        worst(
+                            group,
+                            aggregate=None,
+                            compounded=True,
+                            prepare_returns=False,
+                        )
+                        * 100,
+                        2,
+                    )
+                )
+            )
+            year_win = win_rate(
+                group, aggregate=None, compounded=True, prepare_returns=False
+            )
+            per_year_win_rate.append(float(round(year_win * 100, 2)))
+            time_in_mkt = (
+                float(((group.abs() > 0).sum() / len(group)) * 100)
+                if len(group)
+                else 0.0
+            )
+            per_year_time_in_market.append(float(round(time_in_mkt, 2)))
+            eoy_rows.append(
+                {
+                    "year": str(year),
+                    "annual_return": float(round(year_return * 100, 2)),
+                    "cumulative_return": float(round(year_cagr * 100, 2)),
+                }
+            )
+        eoy_years = [str(row["year"]) for row in eoy_rows]
+        eoy_returns = [float(row["annual_return"]) for row in eoy_rows]
+        eoy_average = (
+            round(float(sum(eoy_returns)) / len(eoy_returns), 2) if eoy_returns else 0.0
+        )
+        window = min(len(pandas_returns), 126) if pandas_returns.size else 0
+
+        def _trim_prefix(
+            values: list[float | None], axis: list[str]
+        ) -> tuple[list[float], list[str]]:
+            start = 0
+            for i, value in enumerate(values):
+                if value is not None:
+                    start = i
+                    break
+            else:
+                return [], []
+            trimmed_values = [value for value in values[start:] if value is not None]
+            trimmed_dates = axis[start:]
+            return trimmed_values, trimmed_dates
+
+        if window >= 3:
+            rolling_series = rolling_sharpe(
+                returns=pandas_returns,
+                rolling_period=window,
+                prepare_returns=False,
+            )
+            rolling_sortino_series = rolling_sortino(
+                returns=pandas_returns,
+                rolling_period=window,
+                prepare_returns=False,
+            )
+            rolling_sharpe_values = [
+                None
+                if val is None or (isinstance(val, float) and math.isnan(val))
+                else float(val)
+                for val in rolling_series
+            ]
+            rolling_sortino_values = [
+                None
+                if val is None or (isinstance(val, float) and math.isnan(val))
+                else float(val)
+                for val in rolling_sortino_series
+            ]
+        else:
+            rolling_sharpe_values = []
+            rolling_sortino_values = []
+
+        rolling_sharpe_trimmed = []
+        rolling_sharpe_dates_trimmed: list[str] = []
+        rolling_sortino_trimmed = []
+        rolling_sortino_dates_trimmed: list[str] = []
+        rolling_vol_trimmed = []
+        rolling_vol_dates_trimmed: list[str] = []
+        if pandas_returns.size:
+            axis_dates = sorted_returns.index.strftime("%Y-%m-%d").tolist()
+            rolling_sharpe_trimmed, rolling_sharpe_dates_trimmed = _trim_prefix(
+                rolling_sharpe_values, axis_dates
+            )
+            rolling_sortino_trimmed, rolling_sortino_dates_trimmed = _trim_prefix(
+                rolling_sortino_values, axis_dates
+            )
+            if window >= 3:
+                rolling_vol_series = rolling_volatility(
+                    returns=pandas_returns,
+                    rolling_period=window,
+                    periods=periods,
+                    prepare_returns=False,
+                )
+                rolling_vol_values = [
+                    None
+                    if val is None or (isinstance(val, float) and math.isnan(val))
+                    else float(val)
+                    for val in rolling_vol_series
+                ]
+                rolling_vol_trimmed, rolling_vol_dates_trimmed = _trim_prefix(
+                    rolling_vol_values, axis_dates
+                )
+        drawdown_series = to_drawdown_series(
+            returns=sorted_returns, prepare_returns=False
+        )
+        underwater_series = (drawdown_series * 100).round(2).astype(float).tolist()
+        details = drawdown_details(drawdown_series)
+        worst_drawdown_df = pd.DataFrame()
+        if not details.empty:
+            worst_drawdown_df = details.sort_values(
+                "max drawdown", ascending=False
+            ).head(10)
+        worst_drawdowns = [
+            {
+                "start": _format_date_iso(row["start"]),
+                "valley": _format_date_iso(row["valley"]),
+                "end": _format_date_iso(row["end"]),
+                "drawdown": f"{row['max drawdown']:.2f}%",
+                "days": int(row["days"]),
+            }
+            for _, row in worst_drawdown_df.iterrows()
+        ]
+        longest = (
+            details.sort_values("days", ascending=False).head(5)
+            if not details.empty
+            else pd.DataFrame()
+        )
+        longest_drawdowns = [
+            {
+                "start": _format_date_iso(row["start"]),
+                "end": _format_date_iso(row["end"]),
+            }
+            for _, row in longest.iterrows()
+        ]
+
+    template: Template = _TEMPLATE_ENV.get_template("tearsheet.html")
+    parameter_rows = list(parameters.items()) if parameters else []
+
+    risk_adjusted_rows = metrics.risk_adjusted_rows()
+    vol_rows = metrics.volatility_rows()
+    tail_rows = metrics.tail_rows()
+    consistency_rows = metrics.consistency_rows()
+
+    sharpe_baseline = _scalar_value(metrics.sharpe)
+    sortino_baseline = _scalar_value(metrics.sortino)
+    vol_baseline = _scalar_value(metrics.annualized_volatility)
+    summary_dates = _format_index_dates(summary_series.index)
     html = template.render(
-        title=config.title if config else "Strategy Tearsheet",
-        subtitle=config.subtitle if config else None,
+        title=title,
         metrics=metrics.as_dict(),
         sections=sections,
+        header_primary=coverage_text,
+        header_secondary=f"Generated by Quantalytics (v{_package_version()})",
+        header_logo=header_logo,
+        parameter_rows=parameter_rows,
+        risk_adjusted_rows=risk_adjusted_rows,
+        vol_rows=vol_rows,
+        tail_rows=tail_rows,
+        consistency_rows=consistency_rows,
+        heatmap_months=heatmap_months,
+        heatmap_years=heatmap_years,
+        heatmap_values=heatmap_values,
+        win_rate_buckets=win_rate_buckets,
+        win_rate_values=win_rate_values,
+        period_rows=period_rows,
+        daily_dates=daily_dates,
+        daily_returns=daily_returns,
+        eoy_rows=eoy_rows,
+        eoy_years=eoy_years,
+        eoy_returns=eoy_returns,
+        eoy_average=eoy_average,
+        rolling_sharpe_series=rolling_sharpe_trimmed,
+        rolling_sharpe_dates=rolling_sharpe_dates_trimmed,
+        rolling_sortino_series=rolling_sortino_trimmed,
+        rolling_sortino_dates=rolling_sortino_dates_trimmed,
+        rolling_vol_series=rolling_vol_trimmed,
+        rolling_vol_dates=rolling_vol_dates_trimmed,
+        sharpe_baseline=sharpe_baseline,
+        sortino_baseline=sortino_baseline,
+        vol_baseline=vol_baseline,
+        underwater_series=underwater_series,
+        summary_dates=summary_dates,
+        summary_values=(summary_series * 100).round(2).tolist(),
+        worst_drawdowns=worst_drawdowns,
+        longest_drawdowns=longest_drawdowns,
+        summary_stat_cards=summary_stat_cards,
+        per_year_best=per_year_best,
+        per_year_avg_up=per_year_avg_up,
+        per_year_expected=per_year_expected,
+        per_year_avg_down=per_year_avg_down,
+        per_year_worst=per_year_worst,
+        per_year_win_rate=per_year_win_rate,
+        per_year_time_in_market=per_year_time_in_market,
     )
     return Tearsheet(html=html)
 
 
-def _ensure_datetime_index(series: pd.Series) -> pd.Series:
-    if isinstance(series.index, pd.DatetimeIndex):
-        return series.sort_index()
-    idx = pd.date_range(end=pd.Timestamp.today(), periods=len(series), freq="B")
-    return series.copy().set_axis(idx)
+def _figure_to_html(fig) -> str:
+    return fig.to_html(full_html=False, include_plotlyjs="cdn")
 
 
-def _datetime_index(series: pd.Series) -> pd.DatetimeIndex:
-    return cast(pd.DatetimeIndex, ensure_datetime_index(series).index)
-
-
-def _period_return(series: pd.Series, start: pd.Timestamp) -> float:
-    if start > series.index[-1]:
-        return 0.0
-    subset = series[series.index >= start]
-    return 0.0 if subset.empty else (1 + subset).prod() - 1
-
-
-def _yearly_table(series: pd.Series) -> list[list[str]]:
-    index: pd.DatetimeIndex = _datetime_index(series)
-    cum = (1 + series).cumprod() - 1
-    years = sorted({idx.year for idx in index})
-    rows = []
-    for year in years:
-        mask = index.year == year  # ty: ignore [unresolved-attribute]
-        if not mask.any():
-            continue
-        year_return = (1 + series[mask]).prod() - 1
-        year_end_cum = cum[mask].iloc[-1]
-        rows.append(
-            [
-                str(year),
-                f"{year_return * 100:.2f}%",
-                f"{year_end_cum * 100:.2f}%",
-            ]
-        )
-    return rows
-
-
-def _drawdown_segments(series: pd.Series) -> tuple[pd.Series, list[dict]]:
-    cum = (1 + series).cumprod() - 1
-    running_max = (1 + cum).cummax()
-    drawdown = (1 + cum) / running_max - 1
-    segments: list[dict] = []
-    current_start = None
-    min_depth = 0.0
-    for date, value in drawdown.items():
-        if value < 0:
-            if current_start is None:
-                current_start = date
-                min_depth = value
-            elif value < min_depth:
-                min_depth = value
-        elif current_start is not None:
-            duration = (date - current_start).days or 1
-            segments.append(
-                {
-                    "start": current_start,
-                    "end": date,
-                    "drawdown": min_depth,
-                    "duration": duration,
-                }
-            )
-            current_start = None
-            min_depth = 0.0
-    if current_start is not None:
-        end = series.index[-1]
-        duration = (end - current_start).days or 1
-        segments.append(
-            {
-                "start": current_start,
-                "end": end,
-                "drawdown": min_depth,
-                "duration": duration,
-            }
-        )
-    return drawdown, segments
-
-
-def _heatmap_matrix(
-    series: pd.Series, years: int = 5
-) -> tuple[list[str], list[str], list[list[float]]]:
-    monthly = (1 + series).resample("ME").agg(lambda x: (1 + x).prod() - 1)
-    month_names = [
-        "Jan",
-        "Feb",
-        "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
-        "Sep",
-        "Oct",
-        "Nov",
-        "Dec",
-    ]
-    unique_years = sorted({idx.year for idx in monthly.index})
-    selected_years = unique_years[-years:] if unique_years else []
-    matrix = []
-    for year in selected_years:
-        row = []
-        for month in range(1, 13):
-            mask = (monthly.index.year == year) & (monthly.index.month == month)
-            value = monthly[mask].iloc[-1] * 100 if mask.any() else 0.0
-            row.append(round(float(value), 2))
-        matrix.append(row)
-    return month_names, [str(y) for y in selected_years], matrix
-
-
-def _win_rate(series: pd.Series, freq: str) -> float:
-    if freq == "D":
-        positive = (series > 0).sum()
-        return float(positive / len(series) * 100) if series.size else 0.0
-    freq_map = {"M": "ME", "Q": "QE", "A": "YE"}
-    resampled = series.resample(freq_map.get(freq, freq)).sum()
-    return 0.0 if resampled.empty else float((resampled > 0).mean() * 100)
-
-
-def _format_percent(value: float, decimals: int = 2) -> str:
-    return f"{value * 100:.{decimals}f}%"
-
-
-def _nan_safe(sequence: Iterable[float | None]) -> list[Optional[float]]:
-    """converts NaN values to None in a sequence, making it "NaN-safe" for operations that don't handle NaN well.
-
-    Args:
-        sequence (Iterable[float]): _description_
-
-    Returns:
-        list[Optional[float]]: _description_
-    """
-    return [
-        None
-        if value is None or (isinstance(value, float) and math.isnan(value))
-        else value
-        for value in sequence
-    ]
-
-
-def _rolling_sharpe(
-    series: pd.Series, window: int, ann_factor: int
-) -> list[Optional[float]]:
-    mean = series.rolling(window, min_periods=3).mean()
-    std = series.rolling(window, min_periods=3).std(ddof=0)
-    raw = mean / std * math.sqrt(ann_factor)
-    return _nan_safe(raw.tolist())
-
-
-def _rolling_sortino(
-    series: pd.Series, window: int, ann_factor: int
-) -> list[Optional[float]]:
-    def _window_sortino(arr: np.ndarray) -> float:
-        if arr.size < 2:
-            return float("nan")
-        downside = arr[arr < 0]
-        dd = np.sqrt(np.mean(downside**2)) if downside.size else 0.0
-        return float("nan") if dd == 0 else arr.mean() / dd * math.sqrt(ann_factor)
-
-    raw = series.rolling(window, min_periods=3).apply(
-        lambda values: _window_sortino(np.array(values)), raw=True
-    )
-    return _nan_safe(raw.tolist())
-
-
-def _rolling_volatility(
-    series: pd.Series, window: int, ann_factor: int
-) -> list[Optional[float]]:
-    raw = (
-        series.rolling(window, min_periods=3).std(ddof=0) * math.sqrt(ann_factor) * 100
-    )
-    return _nan_safe(raw.tolist())
-
-
-def html(
-    returns: Iterable[float] | pd.Series,
-    *,
-    title: str = "Quantalytics Performance Dashboard",
-    output: Optional[Path | str] = None,
-    log_returns: bool = False,
-    subtitle: Optional[str] = None,
-    parameters: Optional[Mapping[str, str]] = None,
-) -> Tearsheet:
-    """Render the interactive HTML tear sheet with provided returns."""
-
-    series = pd.Series(returns).dropna()
-    if series.empty:
-        raise ValueError("Returns must contain at least one numeric observation.")
-    if not np.issubdtype(series.dtype, np.number):
-        raise TypeError("Returns must be numeric.")
-    if log_returns:
-        series = np.log1p(series)
-
-    series = _ensure_datetime_index(series)
-    index: pd.DatetimeIndex = _datetime_index(series)
-    freq_code = index.freqstr or "B"
-    freq_symbol = freq_code[0] if freq_code else "D"
-    ann_factor_map = {"D": 252, "B": 252, "W": 52, "M": 12, "Q": 4, "A": 1}
-    ann_factor = ann_factor_map.get(freq_symbol.upper(), 252)
-
-    stats = performance_summary(series, periods=ann_factor)
-    cum_returns = compsum(series)
-    drawdown_path, segments = _drawdown_segments(series)
-    coverage_start = series.index[0]
-    coverage_end = series.index[-1]
-
-    heatmap_months, heatmap_years, heatmap_values = _heatmap_matrix(series, years=5)
-
-    daily_returns = (series * 100).round(2).tolist()
-    cumulative_percent = (cum_returns * 100).round(2).tolist()
-
-    period_map = [
-        ("MTD", coverage_end - pd.DateOffset(months=1)),
-        ("3M", coverage_end - pd.DateOffset(months=3)),
-        ("6M", coverage_end - pd.DateOffset(months=6)),
-        ("YTD", coverage_end.replace(month=1, day=1)),
-        ("1Y", coverage_end - pd.DateOffset(years=1)),
-        ("3Y", coverage_end - pd.DateOffset(years=3)),
-        ("5Y", coverage_end - pd.DateOffset(years=5)),
-        ("10Y", coverage_end - pd.DateOffset(years=10)),
-    ]
-    period_returns = []
-    for label, start in period_map:
-        start_date = max(series.index[0], start)
-        value = _period_return(series, start_date)
-        period_returns.append([label, f"{value * 100:.2f}%"])
-    period_returns.append(["All-time", f"{((1 + series).prod() - 1) * 100:.2f}%"])
-
-    year_labels: list[str] = []
-    year_values: list[float] = []
-    for year in sorted({idx.year for idx in index}):
-        mask = index.year == year  # ty: ignore [unresolved-attribute]
-        if not mask.any():
-            continue
-        year_labels.append(str(year))
-        year_values.append(float((1 + series[mask]).prod() - 1) * 100)
-
-    window = min(len(series), 63)
-    rolling_sharpe = _rolling_sharpe(series, window, ann_factor)
-    rolling_sortino = _rolling_sortino(series, window, ann_factor)
-
-    win_rate_values = [
-        round(_win_rate(series, "D"), 0),
-        round(_win_rate(series, "W"), 0),
-        round(_win_rate(series, "M"), 0),
-        round(_win_rate(series, "Q"), 0),
-        round(_win_rate(series, "A"), 0),
-    ]
-
-    positive_sum = series[series > 0].sum()
-    negative_sum = abs(series[series < 0].sum())
-    omega = positive_sum / negative_sum if negative_sum else float("nan")
-    romad = (
-        stats.annualized_return / abs(stats.max_drawdown)
-        if stats.max_drawdown != 0
-        else float("nan")
-    )
-    cumulative_final = float(cum_returns.iloc[-1])
-    recovery_factor = (
-        cumulative_final / abs(stats.max_drawdown)
-        if stats.max_drawdown != 0
-        else float("nan")
-    )
-    ulcer_idx = math.sqrt(np.mean((drawdown_path * 100) ** 2))
-    serenity = stats.annualized_return / ulcer_idx if ulcer_idx != 0 else float("nan")
-
-    omega_display = "N/A" if math.isnan(omega) else f"{omega:.2f}"
-    risk_adjusted_rows = [
-        ["Sharpe Ratio", f"{stats.sharpe:.2f}"],
-        ["Sortino Ratio", f"{stats.sortino:.2f}"],
-        ["Smart Sharpe", f"{(stats.sharpe * 1.15):.2f}"],
-        ["Smart Sortino", f"{(stats.sortino * 1.18):.2f}"],
-        ["Sortino/√2", f"{(stats.sortino / math.sqrt(2)):.2f}"],
-        ["Smart Sortino/√2", f"{(stats.sortino * 1.18 / math.sqrt(2)):.2f}"],
-        ["Calmar Ratio", f"{stats.calmar:.2f}"],
-        ["Omega Ratio", omega_display],
-        ["RoMaD", f"{romad:.2f}x"],
-    ]
-
-    dd_segments = sorted(segments, key=lambda seg: seg["drawdown"])
-    longest_dd = max(segments, key=lambda seg: seg["duration"]) if segments else None
-    drawdown_rows = []
-    for seg in dd_segments[:10] if len(dd_segments) >= 10 else dd_segments:
-        drawdown_rows.append(
-            [
-                seg["start"].strftime("%Y-%m-%d"),
-                seg["end"].strftime("%Y-%m-%d"),
-                f"{seg['drawdown'] * 100:.2f}%",
-                str(seg["duration"]),
-            ]
-        )
-
-    drawdown_bands = []
-    for seg in sorted(segments, key=lambda seg: seg["duration"], reverse=True)[:5]:
-        drawdown_bands.append(
-            {
-                "start": seg["start"].strftime("%Y-%m-%d"),
-                "end": seg["end"].strftime("%Y-%m-%d"),
-            }
-        )
-
-    average_drawdown = (
-        drawdown_path[drawdown_path < 0].mean() if (drawdown_path < 0).any() else 0.0
-    )
-    average_dd_days = (
-        sum(seg["duration"] for seg in segments) / len(segments) if segments else 0.0
-    )
-    underwater_pct = ((drawdown_path < 0).sum() / len(drawdown_path)) * 100
-
-    vol_rows = [
-        ["Annualized Vol", f"{stats.annualized_volatility * 100:.2f}%"],
-        ["Max Drawdown", f"{stats.max_drawdown * 100:.2f}%"],
-        [
-            "Longest DD Days",
-            f"{longest_dd['duration']} days" if longest_dd else "0 days",
-        ],
-        ["Average Drawdown", f"{average_drawdown * 100:.2f}%"],
-        ["Average DD Days", f"{average_dd_days:.0f} days"],
-        ["Underwater %", f"{underwater_pct:.2f}%"],
-        [
-            "Recovery Factor",
-            "N/A" if math.isnan(recovery_factor) else f"{recovery_factor:.2f}x",
-        ],
-        ["Ulcer Index", f"{ulcer_idx:.2f}"],
-    ]
-
-    tail_rows = [
-        ["Skewness", f"{series.skew():.2f}"],
-        ["Kurtosis", f"{series.kurtosis():.2f}"],
-        ["Daily VaR", f"{np.percentile(series, 5) * 100:.2f}%"],
-        [
-            "Expected Shortfall",
-            f"{series[series <= np.percentile(series, 5)].mean() * 100:.2f}%",
-        ],
-        ["Serenity Index", "N/A" if math.isnan(serenity) else f"{serenity:.2f}"],
-    ]
-
-    default_parameters = {
-        "Name": "strategy",
-        "Trade Count": "N/A",
-        "Account Size": "N/A",
-        "Bot Count": "N/A",
-        "Trade Selection Type": "median",
-        "Median Rank": "N/A",
-        "Training Length": "N/A",
-        "Testing Length": "N/A",
-        "Optimizer": "max_sharpe",
-        "Multi-Stage Optimizer": "max_sharpe",
-        "Puts": "0",
-        "Calls": "0",
-        "ICs": "N/A",
-    }
-    if parameters:
-        default_parameters.update(parameters)
-    parameter_rows = [[key, value] for key, value in default_parameters.items()]
-
-    consistency_rows = [
-        ["Time in Market", f"{(series != 0).mean() * 100:.2f}%"],
-        [
-            "Avg Up Month",
-            f"{((series[series > 0].mean() * 100) if series[series > 0].any() else 0.0):.2f}%",
-        ],
-        [
-            "Avg Down Month",
-            f"{((series[series < 0].mean() * 100) if series[series < 0].any() else 0.0):.2f}%",
-        ],
-        ["Winning Days", f"{(series > 0).sum()}"],
-        ["Losing Days", f"{(series < 0).sum()}"],
-        ["Expected Daily%", f"{series.mean() * 100:.2f}%"],
-        ["Expected Monthly%", f"{((1 + series.mean()) ** 21 - 1) * 100:.2f}%"],
-        ["Expected Yearly%", f"{((1 + series.mean()) ** 252 - 1) * 100:.2f}%"],
-        ["Best Day", f"{series.max() * 100:.2f}%"],
-        ["Worst Day", f"{series.min() * 100:.2f}%"],
-        [
-            "Best Month",
-            f"{(1 + series.resample('ME').apply(lambda x: (1 + x).prod() - 1).max()) * 100 - 100:.2f}%",
-        ],
-        [
-            "Worst Month",
-            f"{(1 + series.resample('ME').apply(lambda x: (1 + x).prod() - 1).min()) * 100 - 100:.2f}%",
-        ],
-        [
-            "Best Year",
-            f"{(1 + series.resample('YE').apply(lambda x: (1 + x).prod() - 1).max()) * 100 - 100:.2f}%",
-        ],
-        [
-            "Worst Year",
-            f"{(1 + series.resample('YE').apply(lambda x: (1 + x).prod() - 1).min()) * 100 - 100:.2f}%",
-        ],
-    ]
-
-    eoy_table_rows = _yearly_table(series)
-
-    stats_display = {
-        "annualized_return": f"{stats.annualized_return * 100:.2f}%",
-        "sharpe": f"{stats.sharpe:.2f}",
-        "max_drawdown": f"{stats.max_drawdown * 100:.2f}%",
-        "win_rate": f"{win_rate_values[0]:.0f}%",
-        "romad": "N/A" if math.isnan(romad) else f"{romad:.2f}x",
-        "sortino": f"{stats.sortino:.2f}",
-    }
-
-    template_path = _TEMPLATE_DIR / "tearsheet.html"
-    html = template_path.read_text()
-    html = html.replace("__QA_REPORT_TITLE__", title)
-    subtitle_text = (
-        subtitle
-        or f"Generated with Quantalytics (v0.1.0) on {datetime.now():%b %d, %Y}."
-    )
-    coverage_text = f"Data coverage: {coverage_start:%b %Y} – {coverage_end:%b %Y}"
-    html = html.replace("__QA_HEADER_SUBTITLE_PRIMARY__", subtitle_text)
-    html = html.replace("__QA_HEADER_SUBTITLE_SECONDARY__", coverage_text)
-
-    def dumps(value):
-        return json.dumps(value, ensure_ascii=False)
-
-    replacements = [
-        (
-            r"    const dates = Array\.from\([\s\S]+?\);\n",
-            f"    const dates = {dumps([date.strftime('%Y-%m-%d') for date in series.index])};\n",
-        ),
-        (
-            r"    const sampleReturns = dates\.map\([\s\S]+?\);\n",
-            f"    const sampleReturns = {dumps(cumulative_percent)};\n",
-        ),
-        (
-            r"    const sampleDrawdown = sampleReturns\.map\([\s\S]+?\);\n",
-            f"    const sampleDrawdown = {dumps((drawdown_path * 100).round(2).tolist())};\n",
-        ),
-        (
-            r"    const dailyReturnSeries = sampleReturns\.map\([\s\S]+?\);\n",
-            f"    const dailyReturnSeries = {dumps(daily_returns)};\n",
-        ),
-        (
-            r"    const eoyYears = \[[\s\S]+?\];\n",
-            f"    const eoyYears = {dumps(year_labels)};\n",
-        ),
-        (
-            r"    const eoyReturns = \[[\s\S]+?\];\n",
-            f"    const eoyReturns = {dumps([round(value, 2) for value in year_values])};\n",
-        ),
-        (
-            r"    const dailyBars = Array\.from\([\s\S]+?\);\n",
-            f"    const dailyBars = {dumps(daily_returns)};\n",
-        ),
-        (
-            r"    const periodReturns = \[[\s\S]+?\];\n",
-            f"    const periodReturns = {dumps(period_returns)};\n",
-        ),
-        (
-            r"    const rollingSharpe = sampleReturns\.map\([\s\S]+?\);\n",
-            f"    const rollingSharpe = {dumps(rolling_sharpe)};\n",
-        ),
-        (
-            r"    const rollingSortino = sampleReturns\.map\([\s\S]+?\);\n",
-            f"    const rollingSortino = {dumps(rolling_sortino)};\n",
-        ),
-        (
-            r"    const underwaterSeries = sampleDrawdown;\n",
-            f"    const underwaterSeries = {dumps((drawdown_path * 100).round(2).tolist())};\n",
-        ),
-        (
-            r"    const drawdownBands = \[[\s\S]+?\];\n",
-            f"    const drawdownBands = {dumps(drawdown_bands)};\n",
-        ),
-        (
-            r"    const riskAdjustedRows = \[[\s\S]+?\];\n",
-            f"    const riskAdjustedRows = {dumps(risk_adjusted_rows)};\n",
-        ),
-        (
-            r"    const volRows = \[[\s\S]+?\];\n",
-            f"    const volRows = {dumps(vol_rows)};\n",
-        ),
-        (
-            r"    const tailRows = \[[\s\S]+?\];\n",
-            f"    const tailRows = {dumps(tail_rows)};\n",
-        ),
-        (
-            r"    const parameterRows = \[[\s\S]+?\];\n",
-            f"    const parameterRows = {dumps(parameter_rows)};\n",
-        ),
-        (
-            r"    const heatmapMonths = \[[^\]]+\];\n",
-            f"    const heatmapMonths = {dumps(heatmap_months)};\n",
-        ),
-        (
-            r"    const heatmapYears = \[[^\]]+\];\n",
-            f"    const heatmapYears = {dumps(heatmap_years)};\n",
-        ),
-        (
-            r"    const heatmapValues = heatmapYears\.map\([\s\S]+?\);\n",
-            f"    const heatmapValues = {dumps(heatmap_values)};\n",
-        ),
-        (
-            r"    const winRateBuckets = \[[^\]]+\];\n",
-            '    const winRateBuckets = ["Day", "Week", "Month", "Quarter", "Year"];\n',
-        ),
-        (
-            r"    const winRateValues = \[[\s\S]+?\];\n",
-            f"    const winRateValues = {dumps(win_rate_values)};\n",
-        ),
-        (
-            r"    const consistencyRows = \[[\s\S]+?\];\n",
-            f"    const consistencyRows = {dumps(consistency_rows)};\n",
-        ),
-        (
-            r"    const eoyTableRows = \[[\s\S]+?\];\n",
-            f"    const eoyTableRows = {dumps(eoy_table_rows)};\n",
-        ),
-        (
-            r"    const drawdownRows = \[[\s\S]+?\];\n",
-            f"    const drawdownRows = {dumps(drawdown_rows)};\n    const statsDisplay = {dumps(stats_display)};\n",
-        ),
-    ]
-
-    for pattern, replacement in replacements:
-        html = re.sub(pattern, replacement, html, count=1)
-
-    stats_fn_pattern = r"    function renderStats\(\) {\n[\s\S]+?\n    }\n\n"
-    stats_fn_body = (
-        "    function renderStats() {\n"
-        '      document.getElementById("stat-annual-return").textContent = statsDisplay.annualized_return;\n'
-        '      document.getElementById("stat-sharpe").textContent = statsDisplay.sharpe;\n'
-        '      document.getElementById("stat-mdd").textContent = statsDisplay.max_drawdown;\n'
-        '      document.getElementById("stat-win-rate").textContent = statsDisplay.win_rate;\n'
-        '      document.getElementById("stat-romad").textContent = statsDisplay.romad;\n'
-        '      document.getElementById("stat-sortino").textContent = statsDisplay.sortino;\n'
-        "    }\n\n"
-    )
-    html = re.sub(stats_fn_pattern, stats_fn_body, html, count=1)
-
-    tearsheet = Tearsheet(html=html)
-    if output is not None:
-        tearsheet.to_html(output)
-    return tearsheet
+def _safe_chart(chart_func, *args, **kwargs) -> str | None:
+    try:
+        return _figure_to_html(chart_func(*args, **kwargs))
+    except ValueError:
+        return None
 
 
 __all__: list[str] = [
     "Tearsheet",
     "TearsheetSection",
-    "TearsheetConfig",
-    "render_basic_tearsheet",
     "html",
 ]

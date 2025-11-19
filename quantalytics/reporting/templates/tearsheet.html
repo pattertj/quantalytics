@@ -4,7 +4,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>__QA_REPORT_TITLE__</title>
+    <title>{{ title }}</title>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/purecss@3.0.0/build/pure-min.css" integrity="sha384-R9JpA3aI0bY8h1NIsDPKySx1VHa4EraseFH8blYNx+a3Pl6xNcNehJIK/gB+BeIV" crossorigin="anonymous">
   <style>
@@ -154,7 +154,7 @@
     }
 
     .plot-container--half {
-      height: 160px;
+      height: 180px;
     }
 
     .risk-section {
@@ -186,6 +186,11 @@
     .two-column-grid .primary {
       flex: 17;
       min-width: 280px;
+    }
+
+    .two-column-grid.single-column .primary {
+      flex: 1;
+      min-width: 0;
     }
 
     .two-column-grid .secondary {
@@ -264,13 +269,15 @@
 <body>
   <div class="page">
     <header>
+      {% if header_logo %}
       <div class="header-logo">
-        <img src="header-logo.png" alt="Client identity" />
+        <img src="{{ header_logo }}" alt="Client identity" />
       </div>
+      {% endif %}
       <div class="header-text">
-        <h1>__QA_REPORT_TITLE__</h1>
-        <p id="header-subtitle-primary">__QA_HEADER_SUBTITLE_PRIMARY__</p>
-        <p id="header-subtitle-secondary">__QA_HEADER_SUBTITLE_SECONDARY__</p>
+        <h1>{{ title }}</h1>
+        <p id="header-subtitle-primary">{{ header_primary }}</p>
+        <p id="header-subtitle-secondary">{{ header_secondary }}</p>
       </div>
     </header>
 
@@ -280,41 +287,30 @@
         <div class="panel-actions"><button class="panel-export" type="button">PNG</button></div>
       </div>
       <div class="grid">
+        {% for card in summary_stat_cards %}
         <div class="stat-card">
-          <span class="stat-label">CAGR</span>
-          <span class="stat-value" id="stat-annual-return">--%</span>
+          <span class="stat-label">
+            {{ card.label }}
+            {% if card.tooltip %}
+            <span class="info-icon" title="{{ card.tooltip }}">ⓘ</span>
+            {% endif %}
+          </span>
+          <span class="stat-value">{{ card.value }}</span>
         </div>
-        <div class="stat-card">
-          <span class="stat-label">Sharpe Ratio<span class="info-icon" title="Average excess return per unit of total volatility, rewarding higher risk-adjusted performance.">ⓘ</span></span>
-          <span class="stat-value" id="stat-sharpe">--</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">Max Drawdown</span>
-          <span class="stat-value" id="stat-mdd">--%</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">Win Rate</span>
-          <span class="stat-value" id="stat-win-rate">--%</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">RoMaD<span class="info-icon" title="Return over maximum drawdown, highlighting reward relative to capital at risk.">ⓘ</span></span>
-          <span class="stat-value" id="stat-romad">--%</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">Sortino<span class="info-icon" title="Focuses on downside volatility, penalizing losses more than upside fluctuations.">ⓘ</span></span>
-          <span class="stat-value" id="stat-sortino">--%</span>
-        </div>
+        {% endfor %}
       </div>
-      <div class="two-column-grid" style="margin-top:1.5rem;">
+      <div class="two-column-grid{% if not parameter_rows %} single-column{% endif %}" style="margin-top:1.5rem;">
         <div class="primary">
           <div id="chart-cumulative" class="plot-container"></div>
         </div>
+        {% if parameter_rows %}
         <div class="secondary">
           <div>
             <h3 class="chart-title">Strategy Parameters</h3>
             <table class="metric-table" id="table-parameters"></table>
           </div>
         </div>
+        {% endif %}
       </div>
     </section>
 
@@ -391,8 +387,16 @@
       </div>
       <div class="risk-section">
         <div class="chart-area">
-          <h3 class="chart-title">Underwater Curve</h3>
-          <div id="chart-underwater" class="plot-container" style="height: 260px;"></div>
+          <div class="chart-stack">
+            <div>
+              <h3 class="chart-title">Rolling Volatility</h3>
+              <div id="chart-roll-vol" class="plot-container plot-container--half"></div>
+            </div>
+            <div>
+              <h3 class="chart-title">Underwater Curve</h3>
+              <div id="chart-underwater" class="plot-container plot-container--half"></div>
+            </div>
+          </div>
         </div>
         <div class="table-area">
           <h3 class="chart-title">Volatility & Drawdown</h3>
@@ -401,7 +405,7 @@
       </div>
       <div class="risk-section">
         <div class="chart-area">
-          <h3 class="chart-title">Return Distribution</h3>
+            <h3 class="chart-title">Return Distribution <small>(0.5–99.5%)</small></h3>
           <div id="chart-return-dist" class="plot-container" style="height: 260px;"></div>
         </div>
         <div class="table-area">
@@ -412,7 +416,7 @@
       <div class="risk-section">
         <div class="chart-area">
           <h3 class="chart-title">Top 5 Longest Drawdowns</h3>
-          <div id="chart-drawdown-highlight" class="plot-container" style="height: 260px;"></div>
+              <div id="chart-drawdown-highlight" class="plot-container" style="height: 260px;"></div>
         </div>
         <div class="table-area">
           <h3 class="chart-title">Worst 10 Drawdowns</h3>
@@ -436,24 +440,26 @@
         <h2>Consistency Metrics</h2>
         <div class="panel-actions"><button class="panel-export" type="button">PNG</button></div>
       </div>
-      <div class="two-column-grid">
-        <div class="primary">
-          <div class="chart-stack">
-            <div>
-              <h3 class="chart-title">Monthly Returns Heatmap</h3>
-              <div id="chart-heatmap" class="plot-container" style="height: 320px;"></div>
-            </div>
-            <div>
-              <h3 class="chart-title">Win Rate Progression</h3>
-              <div id="chart-winrate" class="plot-container" style="height: 300px;"></div>
-            </div>
-          </div>
+      <div class="chart-stack">
+        <div>
+          <h3 class="chart-title">Monthly Returns Heatmap</h3>
+          <div id="chart-heatmap" class="plot-container" style="height: 320px;"></div>
         </div>
-        <div class="secondary">
-          <div>
-            <h3 class="chart-title">Consistency Snapshot</h3>
-            <table class="metric-table" id="table-consistency"></table>
-          </div>
+        <div>
+          <h3 class="chart-title">Performance by Period (Trend)</h3>
+          <div id="chart-performance-trend" class="plot-container" style="height: 260px;"></div>
+        </div>
+        <div>
+          <h3 class="chart-title">Performance by Period</h3>
+          <table class="metric-table" id="table-performance-grid"></table>
+        </div>
+        <div>
+          <h3 class="chart-title">Performance by Year (Chart)</h3>
+          <div id="chart-performance-years" class="plot-container" style="height: 260px;"></div>
+        </div>
+        <div>
+          <h3 class="chart-title">Performance by Year</h3>
+          <table class="metric-table" id="table-performance-years"></table>
         </div>
       </div>
     </section>
@@ -485,43 +491,65 @@
       return parseFloat((value - sampleReturns[idx - 1]).toFixed(3));
     });
 
-    const eoyYears = ["2020", "2021", "2022", "2023", "2024"];
-    const eoyReturns = [8.5, 14.2, -3.7, 11.6, 9.8];
+    const consistencyRows = {{ consistency_rows | tojson }};
+    const eoyRows = {{ eoy_rows | tojson }};
+    const eoyYears = {{ eoy_years | tojson }};
+    const eoyReturns = {{ eoy_returns | tojson }};
+    const eoyAverage = {{ eoy_average | tojson }};
     const dailyBars = Array.from({ length: 60 }, () => parseFloat((Math.random() * 2 - 1).toFixed(2)));
-    const periodReturns = [
-      ["MTD", "1.2%"],
-      ["3M", "3.9%"],
-      ["6M", "7.4%"],
-      ["YTD", "9.8%"],
-      ["1Y", "12.1%"],
-      ["3Y", "35.5%"],
-      ["5Y", "61.2%"],
-      ["10Y", "108.3%"],
-      ["All-time", "145.0%"],
-    ];
+    const actualDailyDates = {{ daily_dates | tojson }};
+    const actualDailyReturnSeries = {{ daily_returns | tojson }};
+    const periodReturns = {{ period_rows | tojson }};
 
-    const rollingSharpe = sampleReturns.map((_, idx) => parseFloat((1 + Math.sin(idx / 6)).toFixed(2)));
-    const rollingSortino = sampleReturns.map((_, idx) => parseFloat((0.9 + Math.cos(idx / 7)).toFixed(2)));
-    const underwaterSeries = sampleDrawdown;
-    const drawdownBands = [
-      { start: dates[5], end: dates[7] },
-      { start: dates[14], end: dates[17] },
-      { start: dates[24], end: dates[26] },
-      { start: dates[33], end: dates[35] },
-      { start: dates[42], end: dates[44] },
-    ];
+    const longestDrawdowns = {{ longest_drawdowns | tojson }};
 
-    const riskAdjustedRows = [
-      ["Sharpe Ratio", "1.65"],
-      ["Sortino Ratio", "2.10"],
-      ["Smart Sharpe", "5.87"],
-      ["Smart Sortino", "10.39"],
-      ["Sortino/√2", "7.46"],
-      ["Smart Sortino/√2", "7.35"],
-      ["Calmar Ratio", "1.80"],
-      ["Omega Ratio", "1.48"],
-      ["RoMaD", "1.42x"],
-    ];
+    const actualSummaryDates = {{ summary_dates | tojson }};
+    const actualSummaryValues = {{ summary_values | tojson }};
+    const summaryDates = actualSummaryDates.length ? actualSummaryDates : dates;
+    const summaryValues = actualSummaryValues.length ? actualSummaryValues : sampleReturns;
+
+    const actualRollingSharpe = {{ rolling_sharpe_series | tojson }};
+      const actualRollingSortino = {{ rolling_sortino_series | tojson }};
+      const sampleRollingSharpe = sampleReturns.map((_, idx) => parseFloat((1 + Math.sin(idx / 6)).toFixed(2)));
+      const sampleRollingSortino = sampleReturns.map((_, idx) => parseFloat((0.9 + Math.cos(idx / 7)).toFixed(2)));
+      const rollingSharpe = actualRollingSharpe.length ? actualRollingSharpe : sampleRollingSharpe;
+      const rollingSortino = actualRollingSortino.length ? actualRollingSortino : sampleRollingSortino;
+      const actualRollingVol = {{ rolling_vol_series | default([]) | tojson }};
+      const rollingVolRaw = actualRollingVol.length
+        ? actualRollingVol
+        : sampleReturns.map((_, idx) => parseFloat((0.5 + Math.sin(idx / 10)).toFixed(2)));
+      const rollingVol = rollingVolRaw.map((v) =>
+        v === null || v === undefined ? null : parseFloat((v * 100).toFixed(2))
+      );
+      const volBaseline = {{ vol_baseline | tojson }};
+      const rollingSharpeDatesSource = {{ rolling_sharpe_dates | tojson }};
+      const rollingSortinoDatesSource = {{ rolling_sortino_dates | tojson }};
+      const rollingVolDatesSource = {{ rolling_vol_dates | default([]) | tojson }}; // reuse same axis if provided
+      const rollingSharpeDates =
+        (rollingSharpeDatesSource.length ? rollingSharpeDatesSource : dates);
+      const rollingSortinoDates =
+        (rollingSortinoDatesSource.length ? rollingSortinoDatesSource : dates);
+      const rollingVolDates =
+        (rollingVolDatesSource.length ? rollingVolDatesSource : dates);
+    const sharpeBaseline = {{ sharpe_baseline | tojson }};
+    const sortinoBaseline = {{ sortino_baseline | tojson }};
+    const actualUnderwater = {{ underwater_series | tojson }};
+    const underwaterSeries = actualUnderwater.length ? actualUnderwater : sampleDrawdown;
+    const worstDrawdowns = {{ worst_drawdowns | tojson }};
+    const highlightMax = summaryValues.length
+      ? Math.max(...summaryValues)
+      : Math.max(...sampleReturns);
+    const drawdownBands = longestDrawdowns.length
+      ? longestDrawdowns
+      : [
+          { start: dates[5], end: dates[7] },
+          { start: dates[14], end: dates[17] },
+          { start: dates[24], end: dates[26] },
+          { start: dates[33], end: dates[35] },
+          { start: dates[42], end: dates[44] },
+        ];
+
+    const riskAdjustedRows = {{ risk_adjusted_rows | tojson }};
     const riskTooltipMap = {
       "Sharpe Ratio": "Average excess return per unit of total volatility.",
       "Sortino Ratio": "Similar to Sharpe but only penalizes downside variation.",
@@ -533,68 +561,50 @@
       "Omega Ratio": "Ratio of gains to losses above/below a threshold, capturing tail asymmetry.",
       "RoMaD": "Return over maximum drawdown, emphasizing recovery efficiency.",
     };
-    const volRows = [
-      ["Annualized Vol", "9.5%"],
-      ["Max Drawdown", "-8.7%"],
-      ["Longest DD Days", "48 days"],
-      ["Average Drawdown", "-2.4%"],
-      ["Average DD Days", "15 days"],
-      ["Underwater %", "3.2%"],
-      ["Recovery Factor", "1.6x"],
-      ["Ulcer Index", "3.1"],
+    const volRows = {{ vol_rows | tojson }};
+    const tailRows = {{ tail_rows | tojson }};
+    const parameterRows = {{ parameter_rows | tojson }};
+    const heatmapMonths = {{ heatmap_months | tojson }};
+    const heatmapYears = {{ heatmap_years | tojson }};
+    const heatmapValues = {{ heatmap_values | tojson }};
+    const heatmapFlat = heatmapValues.flat();
+    const heatmapMin = heatmapFlat.length ? Math.min(...heatmapFlat) : 0;
+    const heatmapMax = heatmapFlat.length ? Math.max(...heatmapFlat) : 1;
+    const heatmapColorStops = [
+      { stop: 0.0, color: "#a50026" },
+      { stop: 0.1, color: "#d73027" },
+      { stop: 0.2, color: "#f46d43" },
+      { stop: 0.3, color: "#fdae61" },
+      { stop: 0.4, color: "#fee08b" },
+      { stop: 0.5, color: "#ffffbf" },
+      { stop: 0.6, color: "#d9ef8b" },
+      { stop: 0.7, color: "#a6d96a" },
+      { stop: 0.8, color: "#66bd63" },
+      { stop: 0.9, color: "#1a9850" },
+      { stop: 1.0, color: "#006837" },
     ];
-    const tailRows = [
-      ["Skewness", "0.28"],
-      ["Kurtosis", "3.9"],
-      ["Daily VaR", "-2.1%"],
-      ["Expected Shortfall", "-3.4%"],
-      ["Serenity Index", "5.2"],
-    ];
-    const parameterRows = [
-      ["Name", "base"],
-      ["Trade Count", "70"],
-      ["Account Size", "$700,000"],
-      ["Bot Count", "40"],
-      ["Trade Selection Type", "median"],
-      ["Median Rank", "0.8"],
-      ["Training Length", "6m"],
-      ["Testing Length", "1m"],
-      ["Optimizer", "max_sharpe"],
-      ["Multi-Stage Optimizer", "max_sharpe"],
-      ["Puts", "18B / 28T"],
-      ["Calls", "22B / 42T"],
-      ["ICs", "0B / 0T"],
-    ];
-    const heatmapMonths = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const heatmapYears = ["2021", "2022", "2023", "2024", "2025"];
-    const heatmapValues = heatmapYears.map(() => heatmapMonths.map(() => parseFloat(((Math.random() * 4) - 1.5).toFixed(2))));
-    const winRateBuckets = ["Day", "Week", "Month", "Quarter", "Year"];
-    const winRateValues = [58, 60, 62, 66, 71];
-    const consistencyRows = [
-      ["Time in Market", "92%"],
-      ["Avg Up Month", "+2.1%"],
-      ["Avg Down Month", "-1.3%"],
-      ["Winning Days", "142"],
-      ["Losing Days", "108"],
-      ["Expected Daily%", "0.22%"],
-      ["Expected Monthly%", "3.91%"],
-      ["Expected Yearly%", "56.66%"],
-      ["Best Day", "2.93%"],
-      ["Worst Day", "-3.87%"],
-      ["Best Month", "13.52%"],
-      ["Worst Month", "-5.19%"],
-      ["Best Year", "90.86%"],
-      ["Worst Year", "46.24%"],
-    ];
-    const eoyTableRows = [
-      ["2019", "46.24%", "46.55%"],
-      ["2020", "90.86%", "91.54%"],
-      ["2021", "51.39%", "52.09%"],
-      ["2022", "65.36%", "66.28%"],
-      ["2023", "48.47%", "49.29%"],
-      ["2024", "49.23%", "49.39%"],
-      ["2025", "49.61%", "62.99%"],
-    ];
+    const heatmapColorScale = heatmapColorStops.map(({ stop, color }) => [stop, color]);
+    const heatmapTextWhite = new Set(["#a50026", "#d73027", "#006837"]);
+    const normalizeHeatmapValue = (value) => {
+      if (heatmapMax === heatmapMin) {
+        return 0;
+      }
+      return Math.min(Math.max((value - heatmapMin) / (heatmapMax - heatmapMin), 0), 1);
+    };
+    const heatmapColorForValue = (value) => {
+      const ratio = normalizeHeatmapValue(value);
+      for (let i = heatmapColorStops.length - 1; i >= 0; i -= 1) {
+        if (ratio >= heatmapColorStops[i].stop) {
+          return heatmapColorStops[i].color;
+        }
+      }
+      return heatmapColorStops[0].color;
+    };
+    const heatmapTextColor = (value) =>
+      heatmapTextWhite.has(heatmapColorForValue(value)) ? "#ffffff" : "#1b1f24";
+    const winRateBuckets = {{ win_rate_buckets | tojson }};
+    const winRateValues = {{ win_rate_values | tojson }};
+    const eoyTableRows = eoyRows;
     const drawdownRows = [
       ["2025-10-10", "2025-10-30", "-8.27%", "21"],
       ["2022-11-02", "2022-11-21", "-5.12%", "20"],
@@ -608,21 +618,12 @@
       ["2024-12-16", "2025-01-16", "-3.41%", "32"],
     ];
 
-    function renderStats() {
-      document.getElementById("stat-annual-return").textContent = "12.4%";
-      document.getElementById("stat-sharpe").textContent = "1.65";
-      document.getElementById("stat-mdd").textContent = "-8.7%";
-      document.getElementById("stat-win-rate").textContent = "61%";
-      document.getElementById("stat-romad").textContent = "1.42x";
-      document.getElementById("stat-sortino").textContent = "2.10";
-    }
-
     function renderCharts() {
       const chartPrimaryColor = "#358DC2";
       Plotly.newPlot("chart-cumulative", [
         {
-          x: dates,
-          y: sampleReturns,
+          x: summaryDates,
+          y: summaryValues,
           mode: "lines",
           name: "Strategy",
           line: { color: chartPrimaryColor, width: 3 },
@@ -631,7 +632,7 @@
       ], {
         margin: { t: 20, r: 10, b: 40, l: 50 },
         yaxis: { ticksuffix: "%", zeroline: false },
-        xaxis: { type: "date" },
+        xaxis: { type: "date", dtick: "M6", tickformat: "%b %Y" },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
       }, { responsive: true });
@@ -645,41 +646,47 @@
           hovertemplate: "%{y:.1f}%<extra></extra>",
         },
         {
-          x: eoyYears,
-          y: eoyYears.map(() => 12.4),
+          x: [
+            eoyYears[0],
+            eoyYears[eoyYears.length - 1] || eoyYears[0],
+          ],
+          y: [eoyAverage, eoyAverage],
           mode: "lines",
-          name: "CAGR",
-          line: { color: chartPrimaryColor, width: 2, dash: "dot" },
-          hovertemplate: "CAGR 12.4%<extra></extra>",
+          name: "Avg Annual",
+          line: { color: "#ff4747", width: 3, dash: "dash" },
+          hovertemplate: "Avg %{y:.1f}%<extra></extra>",
         }
       ], {
         margin: { t: 10, r: 10, b: 40, l: 40 },
         yaxis: { ticksuffix: "%", zeroline: false },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
-        legend: { orientation: "h", x: 0.5, xanchor: "center", y: -0.25 },
+        showlegend: false,
       }, { responsive: true });
 
+      const dailyXAxis = actualDailyDates.length ? actualDailyDates : Array.from({ length: dailyBars.length }, (_, i) => i + 1);
+      const dailyYAxis = actualDailyReturnSeries.length ? actualDailyReturnSeries : dailyBars;
       Plotly.newPlot("chart-daily", [{
-        x: Array.from({ length: dailyBars.length }, (_, i) => i + 1),
-        y: dailyBars,
+        x: dailyXAxis,
+        y: dailyYAxis,
         type: "bar",
         marker: { color: chartPrimaryColor },
         hovertemplate: "%{y:.2f}%<extra></extra>",
       }], {
         margin: { t: 10, r: 10, b: 40, l: 40 },
         yaxis: { ticksuffix: "%", zeroline: false },
+        xaxis: { type: "date", dtick: "M6", tickformat: "%b %Y" },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
       }, { responsive: true });
 
       const tableBody = document.getElementById("period-table");
-      tableBody.innerHTML = periodReturns.map(
-        ([label, value]) => `<tr><td>${label}</td><td align="right">${value}</td></tr>`
-      ).join("");
+      tableBody.innerHTML = periodReturns
+        .map(({ label, value }) => `<tr><td>${label}</td><td align="right">${value}</td></tr>`)
+        .join("");
 
-      const distValues = dailyReturnSeries.slice(1);
-      const distMean = distValues.reduce((acc, val) => acc + val, 0) / distValues.length;
+    const distValues = actualDailyReturnSeries.length ? actualDailyReturnSeries.slice(1) : dailyReturnSeries.slice(1);
+    const distMean = distValues.reduce((acc, val) => acc + val, 0) / distValues.length;
       const distVariance = distValues.reduce((acc, val) => acc + Math.pow(val - distMean, 2), 0) / distValues.length;
       const distStd = Math.max(Math.sqrt(distVariance), 0.01);
       const normalX = [];
@@ -691,12 +698,18 @@
         normalDensity.push(y);
       }
 
+      const distMaxDensity = Math.max(...normalDensity);
+      const sortedDist = distValues.slice().sort((a, b) => a - b);
+      const clamp = (arr, pct) => {
+        const idx = Math.floor(arr.length * pct);
+        return arr[Math.min(Math.max(idx, 0), arr.length - 1)];
+      };
+      const xMin = clamp(sortedDist, 0.005);
+      const xMax = clamp(sortedDist, 0.995);
       Plotly.newPlot("chart-return-dist", [
         {
           x: distValues,
           type: "histogram",
-          histnorm: "probability density",
-          nbinsx: 20,
           opacity: 0.75,
           marker: { color: chartPrimaryColor },
           hovertemplate: "%{x:.2f}%<extra></extra>",
@@ -711,64 +724,113 @@
       ], {
         margin: { t: 10, r: 10, b: 40, l: 50 },
         xaxis: { title: "Daily Return (%)" },
-        yaxis: { title: "Density" },
+        yaxis: { title: "Count" },
+        xaxis: { title: "Daily Return (%)", range: [xMin, xMax] },
         showlegend: false,
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
+        bargap: 0.2,
+        shapes: [
+          {
+            type: "line",
+            x0: distMean,
+            x1: distMean,
+            y0: 0,
+            y1: distMaxDensity * 1.1,
+            line: { color: "#ff4747", width: 2, dash: "dashdot" },
+          },
+        ],
       }, { responsive: true });
 
+      const baselineSharpeValue = 1.65;
+      const baselineSharpeDates = rollingSharpeDates.length
+        ? [rollingSharpeDates[0], rollingSharpeDates[rollingSharpeDates.length - 1]]
+        : [dates[0], dates[dates.length - 1]];
       Plotly.newPlot("chart-roll-sharpe", [
         {
-          x: dates,
+          x: rollingSharpeDates,
           y: rollingSharpe,
           mode: "lines",
           line: { color: chartPrimaryColor },
           hovertemplate: "%{y:.2f}<extra></extra>",
           showlegend: false,
+          connectgaps: true,
         },
         {
-          x: [dates[0], dates[dates.length - 1]],
-          y: [1.65, 1.65],
+          x: baselineSharpeDates,
+          y: [sharpeBaseline, sharpeBaseline],
           mode: "lines",
-          line: { color: chartPrimaryColor, width: 2, dash: "dot" },
-          hovertemplate: "Sharpe 1.65<extra></extra>",
+          line: { color: "#ff4747", width: 2, dash: "dash" },
+          hovertemplate: `Sharpe ${sharpeBaseline.toFixed(2)}<extra></extra>`,
           showlegend: false,
         }
       ], {
         margin: { t: 10, r: 10, b: 40, l: 40 },
-        xaxis: { type: "date" },
+        xaxis: { type: "date", dtick: "M6", tickformat: "%b %Y" },
         yaxis: { zeroline: false },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
       }, { responsive: true });
 
+      const baselineSortinoDates = rollingSortinoDates.length
+        ? [rollingSortinoDates[0], rollingSortinoDates[rollingSortinoDates.length - 1]]
+        : [dates[0], dates[dates.length - 1]];
       Plotly.newPlot("chart-roll-sortino", [
         {
-          x: dates,
+          x: rollingSortinoDates,
           y: rollingSortino,
           mode: "lines",
           line: { color: chartPrimaryColor },
           hovertemplate: "%{y:.2f}<extra></extra>",
           showlegend: false,
+          connectgaps: true,
         },
         {
-          x: [dates[0], dates[dates.length - 1]],
-          y: [2.10, 2.10],
+          x: baselineSortinoDates,
+          y: [sortinoBaseline, sortinoBaseline],
           mode: "lines",
-          line: { color: chartPrimaryColor, width: 2, dash: "dot" },
-          hovertemplate: "Sortino 2.10<extra></extra>",
+          line: { color: "#ff4747", width: 2, dash: "dash" },
+          hovertemplate: `Sortino ${sortinoBaseline.toFixed(2)}<extra></extra>`,
           showlegend: false,
         }
       ], {
         margin: { t: 10, r: 10, b: 40, l: 40 },
-        xaxis: { type: "date" },
+        xaxis: { type: "date", dtick: "M6", tickformat: "%b %Y" },
         yaxis: { zeroline: false },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
       }, { responsive: true });
 
+      Plotly.newPlot("chart-roll-vol", [
+        {
+          x: rollingVolDates,
+          y: rollingVol,
+          mode: "lines",
+          line: { color: chartPrimaryColor },
+          hovertemplate: "%{y:.2f}%<extra></extra>",
+          showlegend: false,
+          connectgaps: true,
+        },
+        {
+          x: rollingVolDates.length
+            ? [rollingVolDates[0], rollingVolDates[rollingVolDates.length - 1]]
+            : [dates[0], dates[dates.length - 1]],
+          y: [volBaseline * 100, volBaseline * 100],
+          mode: "lines",
+          line: { color: "#ff4747", width: 2, dash: "dash" },
+          hovertemplate: `Ann Vol %{y:.2f}%<extra></extra>`,
+          showlegend: false,
+        },
+      ], {
+        margin: { t: 10, r: 10, b: 40, l: 40 },
+        xaxis: { type: "date", dtick: "M6", tickformat: "%b %Y" },
+        yaxis: { zeroline: false, ticksuffix: "%" },
+        paper_bgcolor: "rgba(0,0,0,0)",
+        plot_bgcolor: "rgba(0,0,0,0)",
+      }, { responsive: true });
+
       Plotly.newPlot("chart-underwater", [{
-        x: dates,
+        x: summaryDates,
         y: underwaterSeries,
         mode: "lines",
         fill: "tozeroy",
@@ -777,32 +839,32 @@
       }], {
         margin: { t: 10, r: 10, b: 40, l: 40 },
         yaxis: { ticksuffix: "%" },
-        xaxis: { type: "date" },
+        xaxis: { type: "date", dtick: "M6", tickformat: "%b %Y", ticks: "outside" },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
       }, { responsive: true });
 
       Plotly.newPlot("chart-drawdown-highlight", [
         {
-          x: dates,
-          y: sampleReturns,
+          x: summaryDates,
+          y: summaryValues,
           mode: "lines",
           line: { color: chartPrimaryColor },
           showlegend: false,
-
         },
         ...drawdownBands.map(({ start, end }) => ({
           x: [start, end, end, start],
-          y: [0, 0, Math.max(...sampleReturns), Math.max(...sampleReturns)],
+          y: [0, 0, highlightMax, highlightMax],
           fill: "toself",
           fillcolor: "rgba(231,111,81,0.15)",
           line: { width: 0 },
+          mode: "none",
           hoverinfo: "skip",
           showlegend: false,
         }))
       ], {
         margin: { t: 10, r: 10, b: 40, l: 40 },
-        xaxis: { type: "date" },
+        xaxis: { type: "date", dtick: "M6", tickformat: "%b %Y", ticks: "outside" },
         yaxis: { ticksuffix: "%" },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
@@ -820,11 +882,11 @@
 
       const riskTable = document.getElementById("table-risk-adjusted");
       riskTable.innerHTML = riskAdjustedRows
-        .map(([label, value, sub]) => {
+        .map(({ label, value, suffix }) => {
           const tooltip = riskTooltipMap[label] || "";
           const infoIcon = tooltip ? ` <span class="info-icon" title="${tooltip}">ⓘ</span>` : "";
-          const subLabel = sub ? `<div style=\"color:var(--color-muted);font-size:0.75rem;\">${sub}</div>` : "";
-          return `<tr><td>${label}${infoIcon}${subLabel}</td><td align=\"right\">${value}</td></tr>`;
+          const displayValue = suffix ? `${value}${suffix}` : value;
+          return `<tr><td>${label}${infoIcon}</td><td align="right">${displayValue}</td></tr>`;
         })
         .join("");
       const tailTooltipMap = {
@@ -836,7 +898,7 @@
       };
       const tailTable = document.getElementById("table-tail");
       tailTable.innerHTML = tailRows
-        .map(([label, value]) => {
+        .map(({ label, value }) => {
           const tooltip = tailTooltipMap[label] || "";
           const infoIcon = tooltip
             ? ` <span class="info-icon" title="${tooltip}">ⓘ</span>`
@@ -850,7 +912,7 @@
       };
       const volTable = document.getElementById("table-vol-draw");
       volTable.innerHTML = volRows
-        .map(([label, value]) => {
+        .map(({ label, value }) => {
           const tooltip = volTooltipMap[label] || "";
           const infoIcon = tooltip
             ? ` <span class="info-icon" title="${tooltip}">ⓘ</span>`
@@ -858,14 +920,29 @@
           return `<tr><td>${label}${infoIcon}</td><td align="right">${value}</td></tr>`;
         })
         .join("");
-      document.getElementById("table-parameters").innerHTML = parameterRows
-        .map(([label, value]) => `<tr><td>${label}</td><td align="right">${value}</td></tr>`)
+      const parametersTable = document.getElementById("table-parameters");
+      if (parameterRows.length && parametersTable) {
+        parametersTable.innerHTML = parameterRows
+          .map(([label, value]) => `<tr><td>${label}</td><td align="right">${value}</td></tr>`)
+          .join("");
+      }
+      const drawdownTable = document.getElementById("table-drawdowns");
+      drawdownTable.innerHTML = worstDrawdowns
+        .map(
+          ({ start, end, drawdown, days }) =>
+            `<tr><td align="right">${start}</td><td align="right">${end}</td><td align="right">${drawdown}</td><td align="right">${days}</td></tr>`
+        )
         .join("");
-      document.getElementById("table-drawdowns").innerHTML = drawdownRows
-        .map(([start, end, dd, days]) => `<tr><td>${start}</td><td>${end}</td><td align="right">${dd}</td><td align="right">${days}</td></tr>`)
-        .join("");
-      document.getElementById("table-eoy").innerHTML = eoyTableRows
-        .map(([year, ret, cum]) => `<tr><td>${year}</td><td align="right">${ret}</td><td align="right">${cum}</td></tr>`)
+      const formatPercent = (value) =>
+        typeof value === "number" ? `${value.toFixed(2)}%` : "--";
+      const eoyTable = document.getElementById("table-eoy");
+      eoyTable.innerHTML = eoyTableRows
+        .map(
+          ({ year, annual_return, cumulative_return }) =>
+            `<tr><td>${year}</td><td align="right">${formatPercent(annual_return)}</td><td align="right">${formatPercent(
+              cumulative_return
+            )}</td></tr>`
+        )
         .join("");
 
       Plotly.newPlot("chart-heatmap", [{
@@ -873,31 +950,23 @@
         x: heatmapMonths,
         y: heatmapYears,
         type: "heatmap",
-        colorscale: [
-          [0.0, "#a50026"],
-          [0.1, "#d73027"],
-          [0.2, "#f46d43"],
-          [0.3, "#fdae61"],
-          [0.4, "#fee08b"],
-          [0.5, "#ffffbf"],
-          [0.6, "#d9ef8b"],
-          [0.7, "#a6d96a"],
-          [0.8, "#66bd63"],
-          [0.9, "#1a9850"],
-          [1.0, "#006837"],
-        ],
+        colorscale: heatmapColorScale,
         hovertemplate: "%{y} %{x}: %{z:.2f}%<extra></extra>",
         showscale: false,
+        xgap: 1,
+        ygap: 1,
+        zmin: heatmapMin,
+        zmax: heatmapMax,
       }], {
         margin: { t: 10, r: 10, b: 40, l: 50 },
         zmid: 0,
-        yaxis: { automargin: true },
+        yaxis: { automargin: true, autorange: "reversed" },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
         annotations: [].concat(...heatmapYears.map((year, yi) =>
           heatmapMonths.map((month, xi) => {
             const value = heatmapValues[yi][xi];
-            const textColor = Math.abs(value) < 0.8 ? "#1b1f24" : "#ffffff";
+            const textColor = heatmapTextColor(value);
             return {
               x: month,
               y: year,
@@ -909,25 +978,137 @@
         )),
       }, { responsive: true });
 
-      Plotly.newPlot("chart-winrate", [{
-        x: winRateBuckets,
-        y: winRateValues,
-        type: "bar",
-        marker: { color: chartPrimaryColor },
-        hovertemplate: "%{y:.0f}%<extra></extra>",
-        text: winRateValues.map((v) => `${v}%`),
-        textposition: "outside",
-      }], {
+      const consistencyLookup = Object.fromEntries(consistencyRows.map(({ label, value }) => [label, value]));
+      const additionalYears = eoyYears || [];
+      const perYearBest = {{ per_year_best | default([]) | tojson }};
+      const perYearAvgUp = {{ per_year_avg_up | default([]) | tojson }};
+      const perYearExpected = {{ per_year_expected | default([]) | tojson }};
+      const perYearAvgDown = {{ per_year_avg_down | default([]) | tojson }};
+      const perYearWorst = {{ per_year_worst | default([]) | tojson }};
+      const perYearWinRate = {{ per_year_win_rate | default([]) | tojson }};
+      const perYearTimeInMarket = {{ per_year_time_in_market | default([]) | tojson }};
+      const performanceBuckets = ["Day", "Week", "Month", "Quarter", "Year"];
+      const performanceRows = [
+        ["Best", [
+          consistencyLookup["Best Day"] || "--",
+          consistencyLookup["Best Week"] || "--",
+          consistencyLookup["Best Month"] || "--",
+          consistencyLookup["Best Quarter"] || "--",
+          consistencyLookup["Best Year"] || "--",
+        ]],
+        ["Avg Up", [
+          consistencyLookup["Avg Up Day"] || "--",
+          consistencyLookup["Avg Up Week"] || "--",
+          consistencyLookup["Avg Up Month"] || "--",
+          consistencyLookup["Avg Up Quarter"] || "--",
+          consistencyLookup["Avg Up Year"] || "--",
+        ]],
+        ["Expected", [
+          consistencyLookup["Expected Daily%"] || "--",
+          consistencyLookup["Expected Weekly%"] || "--",
+          consistencyLookup["Expected Monthly%"] || "--",
+          consistencyLookup["Expected Quarterly%"] || "--",
+          consistencyLookup["Expected Yearly%"] || "--",
+        ]],
+        ["Avg Down", [
+          consistencyLookup["Avg Down Day"] || "--",
+          consistencyLookup["Avg Down Week"] || "--",
+          consistencyLookup["Avg Down Month"] || "--",
+          consistencyLookup["Avg Down Quarter"] || "--",
+          consistencyLookup["Avg Down Year"] || "--",
+        ]],
+        ["Worst", [
+          consistencyLookup["Worst Day"] || "--",
+          consistencyLookup["Worst Week"] || "--",
+          consistencyLookup["Worst Month"] || "--",
+          consistencyLookup["Worst Quarter"] || "--",
+          consistencyLookup["Worst Year"] || "--",
+        ]],
+      ];
+      const performanceTableRows = [
+        ...performanceRows,
+        [
+          "Win Rate",
+          winRateValues.map((v) => `${v}%`),
+        ],
+        [
+          "Time in Market",
+          Array(performanceBuckets.length).fill(consistencyLookup["Time in Market"] || "--"),
+        ],
+      ];
+      const performanceTable = document.getElementById("table-performance-grid");
+      performanceTable.innerHTML = [
+        `<tr><th></th>${performanceBuckets.map((b) => `<th style="text-align:center;">${b}</th>`).join("")}</tr>`,
+        ...performanceTableRows.map(([label, values]) => {
+          const tds = values.map((v) => `<td style="text-align:center;">${v}</td>`).join("");
+          return `<tr><td>${label}</td>${tds}</tr>`;
+        }),
+      ].join("");
+
+      // Yearly performance table (if years exist)
+      const yearsTable = document.getElementById("table-performance-years");
+      if (additionalYears.length && yearsTable) {
+        const yearRows = [
+          ["Best", perYearBest.map((v) => `${v}%`)],
+          ["Avg Up", perYearAvgUp.map((v) => `${v}%`)],
+          ["Expected", perYearExpected.map((v) => `${v}%`)],
+          ["Avg Down", perYearAvgDown.map((v) => `${v}%`)],
+          ["Worst", perYearWorst.map((v) => `${v}%`)],
+          ["Win Rate", perYearWinRate.map((v) => `${v}%`)],
+          ["Time in Market", perYearTimeInMarket.map((v) => `${v}%`)],
+        ];
+        yearsTable.innerHTML = [
+          `<tr><th></th>${additionalYears.map((y) => `<th style="text-align:center;">${y}</th>`).join("")}</tr>`,
+          ...yearRows.map(([label, vals]) => {
+            const tds = vals.map((v) => `<td style="text-align:center;">${v}</td>`).join("");
+            return `<tr><td>${label}</td>${tds}</tr>`;
+          }),
+        ].join("");
+
+        const yearSeries = [
+          { name: "Best", y: perYearBest, color: "#264653" },
+          { name: "Avg Up", y: perYearAvgUp, color: "#2a9d8f" },
+          { name: "Expected", y: perYearExpected, color: "#e9c46a" },
+          { name: "Avg Down", y: perYearAvgDown, color: "#f4a261" },
+          { name: "Worst", y: perYearWorst, color: "#e76f51" },
+        ];
+        Plotly.newPlot("chart-performance-years", yearSeries.map((s) => ({
+          x: additionalYears,
+          y: s.y,
+          mode: "lines+markers",
+          name: s.name,
+          line: { color: s.color, shape: "spline" },
+          hovertemplate: `${s.name} %{x}: %{y:.2f}%<extra></extra>`,
+        })), {
+          margin: { t: 10, r: 10, b: 40, l: 40 },
+          yaxis: { ticksuffix: "%" },
+          xaxis: { type: "category" },
+          paper_bgcolor: "rgba(0,0,0,0)",
+          plot_bgcolor: "rgba(0,0,0,0)",
+          hovermode: "x unified",
+          hoverlabel: { bgcolor: "#ffffff", font: { color: "#1b1f24" } },
+          showlegend: false,
+        }, { responsive: true });
+      }
+
+      // Line chart for performance rows
+      const performanceSeries = performanceRows.map(([label, values]) => ({
+        x: performanceBuckets,
+        y: values.map((v) => parseFloat(String(v).replace("%", ""))),
+        mode: "lines+markers",
+        name: label,
+        line: { shape: "spline" },
+      }));
+
+      Plotly.newPlot("chart-performance-trend", performanceSeries, {
         margin: { t: 10, r: 10, b: 40, l: 40 },
-        yaxis: { ticksuffix: "%", range: [0, 100] },
+        yaxis: { ticksuffix: "%" },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
-        bargap: 0.4,
+        hovermode: "x unified",
+        hoverlabel: { bgcolor: "#ffffff", font: { color: "#1b1f24" } },
+        showlegend: false,
       }, { responsive: true });
-
-      document.getElementById("table-consistency").innerHTML = consistencyRows
-        .map(([label, value]) => `<tr><td>${label}</td><td align="right">${value}</td></tr>`)
-        .join("");
     }
 
     async function copyPanel(panel, button) {
@@ -974,7 +1155,6 @@
     }
 
     document.addEventListener("DOMContentLoaded", () => {
-      renderStats();
       renderCharts();
       setupPanelExport();
     });

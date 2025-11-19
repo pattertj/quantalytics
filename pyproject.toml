@@ -42,7 +42,7 @@ classifiers = [
 ]
 dependencies = [
   "jinja2>=3.1",
-  "matplotlib>=3.6",
+  "narwhals>=2.10.2",
   "numpy>=1.23",
   "pandas>=1.5",
   "plotly>=5.15",
