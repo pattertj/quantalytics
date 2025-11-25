@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
 from pathlib import Path
-from typing import Any, Iterable, List, Mapping, Optional
+from typing import Any, Iterable, List, Mapping, Optional, cast
 
 import narwhals as nw
 import pandas as pd
@@ -156,7 +156,8 @@ def _yearly_breakdown(series: pd.Series | None) -> dict[str, dict[str, float]]:
     if series is None or series.empty:
         return summary
     sorted_series = series.sort_index()
-    for year, group in sorted_series.groupby(sorted_series.index.year):
+    # Type checker needs to know index is DatetimeIndex
+    for year, group in sorted_series.groupby(sorted_series.index.year):  # type: ignore[attr-defined]
         if group.empty:
             continue
         year_return = comp(group)
@@ -180,8 +181,8 @@ def _average_non_null(values: Iterable[float | None]) -> float:
 
 
 def _merge_metric_rows(
-    strategy_rows: list[Mapping[str, str]],
-    benchmark_rows: list[Mapping[str, str]] | None,
+    strategy_rows: list[Mapping[str, str]] | list[dict[str, str]],
+    benchmark_rows: list[Mapping[str, str]] | list[dict[str, str]] | None,
 ) -> list[dict[str, str | None]]:
     """Combine formatted rows for strategy/benchmark tables."""
 
@@ -499,9 +500,9 @@ def html(
     sections = list(sections) if sections is not None else default_sections
 
     worst_drawdowns: list[dict] = []
-    eoy_rows: list[dict[str, float | str]] = []
+    eoy_rows: list[dict[str, float | str | None]] = []
     eoy_years: list[str] = []
-    eoy_returns: list[float] = []
+    eoy_returns: list[float | None] = []
     eoy_average: float = 0.0
     per_year_best: list[float] = []
     per_year_avg_up: list[float] = []
@@ -816,13 +817,15 @@ def html(
             rolling_sharpe_values = []
             rolling_sortino_values = []
         if window >= 3 and sorted_benchmark is not None:
+            # Type narrowing: sorted_benchmark is not None, so pandas_bench must also be not None
+            bench_returns = cast(pd.Series, pandas_bench)
             bench_sharpe_series = rolling_sharpe(
-                returns=pandas_bench,
+                returns=bench_returns,
                 rolling_period=window,
                 prepare_returns=False,
             )
             bench_sortino_series = rolling_sortino(
-                returns=pandas_bench,
+                returns=bench_returns,
                 rolling_period=window,
                 prepare_returns=False,
             )
@@ -879,8 +882,9 @@ def html(
                 benchmark_rolling_sortino_dates_trimmed,
             ) = _trim_prefix(benchmark_rolling_sortino_values, bench_axis_dates)
             if window >= 3:
+                # Type narrowing: already in sorted_benchmark is not None block
                 bench_rolling_vol_series = rolling_volatility(
-                    returns=pandas_bench,
+                    returns=bench_returns,
                     rolling_period=window,
                     periods=periods,
                     prepare_returns=False,
