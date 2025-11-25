@@ -113,6 +113,16 @@
       cursor: not-allowed;
     }
 
+    .benchmark-label {
+      font-size: 0.85rem;
+      color: var(--color-muted);
+      margin: 0.2rem 0;
+    }
+
+    .benchmark-label--panel {
+      margin-top: 0.75rem;
+    }
+
     .grid {
       display: grid;
       grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -252,6 +262,35 @@
       background: #f6fafb;
     }
 
+    /* Custom Panel Layouts */
+    .custom-panel-full {
+      width: 100%;
+    }
+
+    .custom-panel-split {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.25rem;
+    }
+
+    .custom-panel-charts {
+      flex: 17;
+      min-width: 280px;
+    }
+
+    .custom-panel-metrics {
+      flex: 7;
+      min-width: 240px;
+    }
+
+    .custom-chart {
+      margin-bottom: 1rem;
+    }
+
+    .custom-chart:last-child {
+      margin-bottom: 0;
+    }
+
     @media (max-width: 768px) {
       .panel {
         padding: 1.25rem;
@@ -259,6 +298,12 @@
 
       .grid {
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      }
+
+      .custom-panel-charts,
+      .custom-panel-metrics {
+        flex: 1;
+        min-width: 100%;
       }
     }
   </style>
@@ -278,6 +323,9 @@
         <h1>{{ title }}</h1>
         <p id="header-subtitle-primary">{{ header_primary }}</p>
         <p id="header-subtitle-secondary">{{ header_secondary }}</p>
+        {% if has_benchmark %}
+        <p class="benchmark-label"><strong>Benchmark:</strong> {{ benchmark_label }}</p>
+        {% endif %}
       </div>
     </header>
 
@@ -299,6 +347,9 @@
         </div>
         {% endfor %}
       </div>
+      {% if has_benchmark %}
+      <p class="benchmark-label benchmark-label--panel"><strong>Benchmark Comparison:</strong> {{ benchmark_label }}</p>
+      {% endif %}
       <div class="two-column-grid{% if not parameter_rows %} single-column{% endif %}" style="margin-top:1.5rem;">
         <div class="primary">
           <div id="chart-cumulative" class="plot-container"></div>
@@ -332,7 +383,13 @@
                 <tr>
                   <th>Year</th>
                   <th style="text-align:right;">Return</th>
-                  <th style="text-align:right;">Cumulative</th>
+                  {% if has_benchmark %}
+                  <th style="text-align:right;">Return ({{ benchmark_label }})</th>
+                  {% endif %}
+                  <th style="text-align:right;">Cum.</th>
+                  {% if has_benchmark %}
+                  <th style="text-align:right;">Cum. ({{ benchmark_label }})</th>
+                  {% endif %}
                 </tr>
               </thead>
               <tbody id="table-eoy"></tbody>
@@ -352,7 +409,10 @@
               <thead>
                 <tr>
                   <th>Period</th>
-                  <th style="text-align:right;">Return</th>
+                  <th style="text-align:right;">Strategy</th>
+                  {% if has_benchmark %}
+                  <th style="text-align:right;">{{ benchmark_label }}</th>
+                  {% endif %}
                 </tr>
               </thead>
               <tbody id="period-table"></tbody>
@@ -382,7 +442,18 @@
         </div>
         <div class="table-area">
           <h3 class="chart-title">Risk-adjusted Returns</h3>
-          <table class="metric-table" id="table-risk-adjusted"></table>
+          <table class="metric-table">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th style="text-align:right;">Strategy</th>
+                {% if has_benchmark %}
+                <th style="text-align:right;">{{ benchmark_label }}</th>
+                {% endif %}
+              </tr>
+            </thead>
+            <tbody id="table-risk-adjusted"></tbody>
+          </table>
         </div>
       </div>
       <div class="risk-section">
@@ -400,7 +471,18 @@
         </div>
         <div class="table-area">
           <h3 class="chart-title">Volatility & Drawdown</h3>
-          <table class="metric-table" id="table-vol-draw"></table>
+          <table class="metric-table">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th style="text-align:right;">Strategy</th>
+                {% if has_benchmark %}
+                <th style="text-align:right;">{{ benchmark_label }}</th>
+                {% endif %}
+              </tr>
+            </thead>
+            <tbody id="table-vol-draw"></tbody>
+          </table>
         </div>
       </div>
       <div class="risk-section">
@@ -410,7 +492,18 @@
         </div>
         <div class="table-area">
           <h3 class="chart-title">Distribution & Tail Risk</h3>
-          <table class="metric-table" id="table-tail"></table>
+          <table class="metric-table">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th style="text-align:right;">Strategy</th>
+                {% if has_benchmark %}
+                <th style="text-align:right;">{{ benchmark_label }}</th>
+                {% endif %}
+              </tr>
+            </thead>
+            <tbody id="table-tail"></tbody>
+          </table>
         </div>
       </div>
       <div class="risk-section">
@@ -463,10 +556,74 @@
         </div>
       </div>
     </section>
+
+    <!-- Custom Panels -->
+    {% if custom_panels %}
+    {% for panel in custom_panels %}
+    <section class="panel">
+      <div class="panel-header">
+        <h2>{{ panel.title }}</h2>
+        <div class="panel-actions"><button class="panel-export" type="button">PNG</button></div>
+      </div>
+
+      {% if panel.layout == "charts_only" %}
+        <!-- Charts only: expand to 100% width -->
+        <div class="custom-panel-full">
+          {% for chart_html in panel.charts %}
+          <div class="custom-chart">
+            {{ chart_html | safe }}
+          </div>
+          {% endfor %}
+        </div>
+
+      {% elif panel.layout == "metrics_only" %}
+        <!-- Metrics only: expand to 100% width -->
+        <div class="custom-panel-full">
+          <table class="metric-table">
+            <tbody>
+              {% for metric in panel.metrics %}
+              <tr>
+                <td class="metric-label">{{ metric.label }}</td>
+                <td class="metric-value">{{ metric.value }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+      {% elif panel.layout == "both" %}
+        <!-- Both charts and metrics: 70/30 split -->
+        <div class="custom-panel-split">
+          <div class="custom-panel-charts">
+            {% for chart_html in panel.charts %}
+            <div class="custom-chart">
+              {{ chart_html | safe }}
+            </div>
+            {% endfor %}
+          </div>
+          <div class="custom-panel-metrics">
+            <table class="metric-table">
+              <tbody>
+                {% for metric in panel.metrics %}
+                <tr>
+                  <td class="metric-label">{{ metric.label }}</td>
+                  <td class="metric-value">{{ metric.value }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endif %}
+    </section>
+    {% endfor %}
+    {% endif %}
   </div>
 
   <script>
     // Placeholder data for scaffolding
+    const hasBenchmark = {{ has_benchmark | tojson }};
+    const benchmarkLabel = {{ benchmark_label | tojson }};
     const dates = Array.from({ length: 60 }, (_, i) => {
       const d = new Date();
       d.setMonth(d.getMonth() - (60 - i));
@@ -496,6 +653,8 @@
     const eoyYears = {{ eoy_years | tojson }};
     const eoyReturns = {{ eoy_returns | tojson }};
     const eoyAverage = {{ eoy_average | tojson }};
+    const benchmarkEoyReturns = {{ benchmark_eoy_returns | tojson }};
+    const benchmarkEoyAverage = {{ benchmark_eoy_average | tojson }};
     const dailyBars = Array.from({ length: 60 }, () => parseFloat((Math.random() * 2 - 1).toFixed(2)));
     const actualDailyDates = {{ daily_dates | tojson }};
     const actualDailyReturnSeries = {{ daily_returns | tojson }};
@@ -505,20 +664,34 @@
 
     const actualSummaryDates = {{ summary_dates | tojson }};
     const actualSummaryValues = {{ summary_values | tojson }};
+    const benchmarkSummaryDates = {{ benchmark_summary_dates | tojson }};
+    const benchmarkSummaryValues = {{ benchmark_summary_values | tojson }};
     const summaryDates = actualSummaryDates.length ? actualSummaryDates : dates;
     const summaryValues = actualSummaryValues.length ? actualSummaryValues : sampleReturns;
+    const summaryBenchmarkDates = benchmarkSummaryDates.length ? benchmarkSummaryDates : summaryDates;
+    const summaryBenchmarkValues = benchmarkSummaryValues.length ? benchmarkSummaryValues : [];
 
     const actualRollingSharpe = {{ rolling_sharpe_series | tojson }};
       const actualRollingSortino = {{ rolling_sortino_series | tojson }};
+      const benchmarkRollingSharpeRaw = {{ benchmark_rolling_sharpe_series | default([]) | tojson }};
+      const benchmarkRollingSharpeDatesSource = {{ benchmark_rolling_sharpe_dates | default([]) | tojson }};
+      const benchmarkRollingSortinoRaw = {{ benchmark_rolling_sortino_series | default([]) | tojson }};
+      const benchmarkRollingSortinoDatesSource = {{ benchmark_rolling_sortino_dates | default([]) | tojson }};
       const sampleRollingSharpe = sampleReturns.map((_, idx) => parseFloat((1 + Math.sin(idx / 6)).toFixed(2)));
       const sampleRollingSortino = sampleReturns.map((_, idx) => parseFloat((0.9 + Math.cos(idx / 7)).toFixed(2)));
       const rollingSharpe = actualRollingSharpe.length ? actualRollingSharpe : sampleRollingSharpe;
       const rollingSortino = actualRollingSortino.length ? actualRollingSortino : sampleRollingSortino;
+      const benchmarkRollingSharpe = benchmarkRollingSharpeRaw.length ? benchmarkRollingSharpeRaw : [];
+      const benchmarkRollingSortino = benchmarkRollingSortinoRaw.length ? benchmarkRollingSortinoRaw : [];
       const actualRollingVol = {{ rolling_vol_series | default([]) | tojson }};
+      const benchmarkRollingVolRaw = {{ benchmark_rolling_vol_series | default([]) | tojson }};
       const rollingVolRaw = actualRollingVol.length
         ? actualRollingVol
         : sampleReturns.map((_, idx) => parseFloat((0.5 + Math.sin(idx / 10)).toFixed(2)));
       const rollingVol = rollingVolRaw.map((v) =>
+        v === null || v === undefined ? null : parseFloat((v * 100).toFixed(2))
+      );
+      const benchmarkRollingVol = benchmarkRollingVolRaw.map((v) =>
         v === null || v === undefined ? null : parseFloat((v * 100).toFixed(2))
       );
       const volBaseline = {{ vol_baseline | tojson }};
@@ -531,10 +704,18 @@
         (rollingSortinoDatesSource.length ? rollingSortinoDatesSource : dates);
       const rollingVolDates =
         (rollingVolDatesSource.length ? rollingVolDatesSource : dates);
+      const benchmarkRollingSharpeDates = benchmarkRollingSharpeDatesSource.length
+        ? benchmarkRollingSharpeDatesSource
+        : summaryBenchmarkDates;
+      const benchmarkRollingSortinoDates = benchmarkRollingSortinoDatesSource.length
+        ? benchmarkRollingSortinoDatesSource
+        : summaryBenchmarkDates;
+      const benchmarkRollingVolDates = {{ benchmark_rolling_vol_dates | default([]) | tojson }};
     const sharpeBaseline = {{ sharpe_baseline | tojson }};
     const sortinoBaseline = {{ sortino_baseline | tojson }};
     const actualUnderwater = {{ underwater_series | tojson }};
     const underwaterSeries = actualUnderwater.length ? actualUnderwater : sampleDrawdown;
+    const benchmarkUnderwaterSeries = {{ benchmark_underwater_series | tojson }};
     const worstDrawdowns = {{ worst_drawdowns | tojson }};
     const highlightMax = summaryValues.length
       ? Math.max(...summaryValues)
@@ -620,7 +801,7 @@
 
     function renderCharts() {
       const chartPrimaryColor = "#358DC2";
-      Plotly.newPlot("chart-cumulative", [
+      const cumulativeTraces = [
         {
           x: summaryDates,
           y: summaryValues,
@@ -629,23 +810,45 @@
           line: { color: chartPrimaryColor, width: 3 },
           hovertemplate: "%{y:.2f}%<extra></extra>",
         },
-      ], {
+      ];
+      if (hasBenchmark && summaryBenchmarkValues.length) {
+        cumulativeTraces.push({
+          x: summaryBenchmarkDates,
+          y: summaryBenchmarkValues,
+          mode: "lines",
+          name: benchmarkLabel,
+          hovertemplate: "%{y:.2f}%<extra></extra>",
+        });
+      }
+      Plotly.newPlot("chart-cumulative", cumulativeTraces, {
         margin: { t: 20, r: 10, b: 40, l: 50 },
         yaxis: { ticksuffix: "%", zeroline: false },
         xaxis: { type: "date", dtick: "M6", tickformat: "%b %Y" },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
+        showlegend: false,
       }, { responsive: true });
 
-      Plotly.newPlot("chart-eoy", [
+      const eoyTraces = [
         {
           x: eoyYears,
           y: eoyReturns,
           type: "bar",
+          name: "Strategy",
           marker: { color: chartPrimaryColor },
           hovertemplate: "%{y:.1f}%<extra></extra>",
         },
-        {
+      ];
+      if (hasBenchmark && benchmarkEoyReturns.some((val) => typeof val === "number")) {
+        eoyTraces.push({
+          x: eoyYears,
+          y: benchmarkEoyReturns,
+          type: "bar",
+          name: benchmarkLabel,
+          hovertemplate: "%{y:.1f}%<extra></extra>",
+        });
+      }
+      eoyTraces.push({
           x: [
             eoyYears[0],
             eoyYears[eoyYears.length - 1] || eoyYears[0],
@@ -655,13 +858,15 @@
           name: "Avg Annual",
           line: { color: "#ff4747", width: 3, dash: "dash" },
           hovertemplate: "Avg %{y:.1f}%<extra></extra>",
-        }
-      ], {
+          showlegend: false,
+        });
+      Plotly.newPlot("chart-eoy", eoyTraces, {
         margin: { t: 10, r: 10, b: 40, l: 40 },
         yaxis: { ticksuffix: "%", zeroline: false },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
         showlegend: false,
+        barmode: "group",
       }, { responsive: true });
 
       const dailyXAxis = actualDailyDates.length ? actualDailyDates : Array.from({ length: dailyBars.length }, (_, i) => i + 1);
@@ -682,7 +887,12 @@
 
       const tableBody = document.getElementById("period-table");
       tableBody.innerHTML = periodReturns
-        .map(({ label, value }) => `<tr><td>${label}</td><td align="right">${value}</td></tr>`)
+        .map(({ label, value, benchmark_value }) => {
+          const benchmarkCell = hasBenchmark
+            ? `<td align="right">${benchmark_value || "--"}</td>`
+            : "";
+          return `<tr><td>${label}</td><td align="right">${value}</td>${benchmarkCell}</tr>`;
+        })
         .join("");
 
     const distValues = actualDailyReturnSeries.length ? actualDailyReturnSeries.slice(1) : dailyReturnSeries.slice(1);
@@ -746,7 +956,7 @@
       const baselineSharpeDates = rollingSharpeDates.length
         ? [rollingSharpeDates[0], rollingSharpeDates[rollingSharpeDates.length - 1]]
         : [dates[0], dates[dates.length - 1]];
-      Plotly.newPlot("chart-roll-sharpe", [
+      const sharpeTraces = [
         {
           x: rollingSharpeDates,
           y: rollingSharpe,
@@ -756,26 +966,38 @@
           showlegend: false,
           connectgaps: true,
         },
-        {
-          x: baselineSharpeDates,
-          y: [sharpeBaseline, sharpeBaseline],
+      ];
+      if (hasBenchmark && benchmarkRollingSharpe.length) {
+        sharpeTraces.push({
+          x: benchmarkRollingSharpeDates.length ? benchmarkRollingSharpeDates : summaryBenchmarkDates,
+          y: benchmarkRollingSharpe,
           mode: "lines",
-          line: { color: "#ff4747", width: 2, dash: "dash" },
-          hovertemplate: `Sharpe ${sharpeBaseline.toFixed(2)}<extra></extra>`,
-          showlegend: false,
-        }
-      ], {
+          name: benchmarkLabel,
+          hovertemplate: "%{y:.2f}<extra></extra>",
+          connectgaps: true,
+        });
+      }
+      sharpeTraces.push({
+        x: baselineSharpeDates,
+        y: [sharpeBaseline, sharpeBaseline],
+        mode: "lines",
+        line: { color: "#ff4747", width: 2, dash: "dash" },
+        hovertemplate: `Sharpe ${sharpeBaseline.toFixed(2)}<extra></extra>`,
+        showlegend: false,
+      });
+      Plotly.newPlot("chart-roll-sharpe", sharpeTraces, {
         margin: { t: 10, r: 10, b: 40, l: 40 },
         xaxis: { type: "date", dtick: "M6", tickformat: "%b %Y" },
         yaxis: { zeroline: false },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
+        showlegend: false,
       }, { responsive: true });
 
       const baselineSortinoDates = rollingSortinoDates.length
         ? [rollingSortinoDates[0], rollingSortinoDates[rollingSortinoDates.length - 1]]
         : [dates[0], dates[dates.length - 1]];
-      Plotly.newPlot("chart-roll-sortino", [
+      const sortinoTraces = [
         {
           x: rollingSortinoDates,
           y: rollingSortino,
@@ -785,23 +1007,35 @@
           showlegend: false,
           connectgaps: true,
         },
-        {
-          x: baselineSortinoDates,
-          y: [sortinoBaseline, sortinoBaseline],
+      ];
+      if (hasBenchmark && benchmarkRollingSortino.length) {
+        sortinoTraces.push({
+          x: benchmarkRollingSortinoDates.length ? benchmarkRollingSortinoDates : summaryBenchmarkDates,
+          y: benchmarkRollingSortino,
           mode: "lines",
-          line: { color: "#ff4747", width: 2, dash: "dash" },
-          hovertemplate: `Sortino ${sortinoBaseline.toFixed(2)}<extra></extra>`,
-          showlegend: false,
-        }
-      ], {
+          name: benchmarkLabel,
+          hovertemplate: "%{y:.2f}<extra></extra>",
+          connectgaps: true,
+        });
+      }
+      sortinoTraces.push({
+        x: baselineSortinoDates,
+        y: [sortinoBaseline, sortinoBaseline],
+        mode: "lines",
+        line: { color: "#ff4747", width: 2, dash: "dash" },
+        hovertemplate: `Sortino ${sortinoBaseline.toFixed(2)}<extra></extra>`,
+        showlegend: false,
+      });
+      Plotly.newPlot("chart-roll-sortino", sortinoTraces, {
         margin: { t: 10, r: 10, b: 40, l: 40 },
         xaxis: { type: "date", dtick: "M6", tickformat: "%b %Y" },
         yaxis: { zeroline: false },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
+        showlegend: false,
       }, { responsive: true });
 
-      Plotly.newPlot("chart-roll-vol", [
+      const rollingVolTraces = [
         {
           x: rollingVolDates,
           y: rollingVol,
@@ -811,37 +1045,65 @@
           showlegend: false,
           connectgaps: true,
         },
-        {
-          x: rollingVolDates.length
-            ? [rollingVolDates[0], rollingVolDates[rollingVolDates.length - 1]]
-            : [dates[0], dates[dates.length - 1]],
-          y: [volBaseline * 100, volBaseline * 100],
+      ];
+      if (hasBenchmark && benchmarkRollingVol.length) {
+        const benchmarkVolDates =
+          benchmarkRollingVolDates.length ? benchmarkRollingVolDates : summaryBenchmarkDates;
+        rollingVolTraces.push({
+          x: benchmarkVolDates,
+          y: benchmarkRollingVol,
           mode: "lines",
-          line: { color: "#ff4747", width: 2, dash: "dash" },
-          hovertemplate: `Ann Vol %{y:.2f}%<extra></extra>`,
-          showlegend: false,
-        },
-      ], {
+          name: benchmarkLabel,
+          hovertemplate: "%{y:.2f}%<extra></extra>",
+          connectgaps: true,
+        });
+      }
+      rollingVolTraces.push({
+        x: rollingVolDates.length
+          ? [rollingVolDates[0], rollingVolDates[rollingVolDates.length - 1]]
+          : [dates[0], dates[dates.length - 1]],
+        y: [volBaseline * 100, volBaseline * 100],
+        mode: "lines",
+        line: { color: "#ff4747", width: 2, dash: "dash" },
+        hovertemplate: `Ann Vol %{y:.2f}%<extra></extra>`,
+        showlegend: false,
+      });
+      Plotly.newPlot("chart-roll-vol", rollingVolTraces, {
         margin: { t: 10, r: 10, b: 40, l: 40 },
         xaxis: { type: "date", dtick: "M6", tickformat: "%b %Y" },
         yaxis: { zeroline: false, ticksuffix: "%" },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
+        showlegend: false,
       }, { responsive: true });
 
-      Plotly.newPlot("chart-underwater", [{
-        x: summaryDates,
-        y: underwaterSeries,
-        mode: "lines",
-        fill: "tozeroy",
-        line: { color: chartPrimaryColor },
-        hovertemplate: "%{y:.2f}%<extra></extra>",
-      }], {
+      const underwaterTraces = [
+        {
+          x: summaryDates,
+          y: underwaterSeries,
+          mode: "lines",
+          name: "Strategy",
+          fill: "tozeroy",
+          line: { color: chartPrimaryColor },
+          hovertemplate: "%{y:.2f}%<extra></extra>",
+        },
+      ];
+      if (hasBenchmark && benchmarkUnderwaterSeries.length) {
+        underwaterTraces.push({
+          x: summaryBenchmarkDates,
+          y: benchmarkUnderwaterSeries,
+          mode: "lines",
+          name: benchmarkLabel,
+          hovertemplate: "%{y:.2f}%<extra></extra>",
+        });
+      }
+      Plotly.newPlot("chart-underwater", underwaterTraces, {
         margin: { t: 10, r: 10, b: 40, l: 40 },
         yaxis: { ticksuffix: "%" },
         xaxis: { type: "date", dtick: "M6", tickformat: "%b %Y", ticks: "outside" },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
+        showlegend: false,
       }, { responsive: true });
 
       Plotly.newPlot("chart-drawdown-highlight", [
@@ -870,25 +1132,23 @@
         plot_bgcolor: "rgba(0,0,0,0)",
       }, { responsive: true });
 
-      const renderTable = (id, rows) => {
-        const table = document.getElementById(id);
-        table.innerHTML = rows
-          .map(([label, value, sub]) => {
-            const subLabel = sub ? `<div style="color:var(--color-muted);font-size:0.75rem;">${sub}</div>` : "";
-            return `<tr><td>${label}${subLabel}</td><td align="right">${value}</td></tr>`;
+      const formatMetricValue = (value) =>
+        value === null || value === undefined || value === "" ? "--" : value;
+      const renderMetricTable = (id, rows, tooltipMap = {}) => {
+        const body = document.getElementById(id);
+        body.innerHTML = rows
+          .map(({ label, strategy, benchmark }) => {
+            const tooltip = tooltipMap[label] || "";
+            const infoIcon = tooltip ? ` <span class="info-icon" title="${tooltip}">ⓘ</span>` : "";
+            const benchmarkCell = hasBenchmark
+              ? `<td align="right">${formatMetricValue(benchmark)}</td>`
+              : "";
+            return `<tr><td>${label}${infoIcon}</td><td align="right">${formatMetricValue(strategy)}</td>${benchmarkCell}</tr>`;
           })
           .join("");
       };
 
-      const riskTable = document.getElementById("table-risk-adjusted");
-      riskTable.innerHTML = riskAdjustedRows
-        .map(({ label, value, suffix }) => {
-          const tooltip = riskTooltipMap[label] || "";
-          const infoIcon = tooltip ? ` <span class="info-icon" title="${tooltip}">ⓘ</span>` : "";
-          const displayValue = suffix ? `${value}${suffix}` : value;
-          return `<tr><td>${label}${infoIcon}</td><td align="right">${displayValue}</td></tr>`;
-        })
-        .join("");
+      renderMetricTable("table-risk-adjusted", riskAdjustedRows, riskTooltipMap);
       const tailTooltipMap = {
         "Skewness": "Measures asymmetry; positive values suggest upside outliers, negative values indicate deeper downside tails.",
         "Kurtosis": "Indicates tail thickness; higher numbers mean more extreme events than a normal distribution.",
@@ -896,30 +1156,12 @@
         "Expected Shortfall": "Expected Shortfall (cVaR) averages losses beyond the VaR cutoff, capturing tail severity.",
         "Serenity Index": "Combines return and drawdown profiles; higher values imply smoother equity curves with better rewards.",
       };
-      const tailTable = document.getElementById("table-tail");
-      tailTable.innerHTML = tailRows
-        .map(({ label, value }) => {
-          const tooltip = tailTooltipMap[label] || "";
-          const infoIcon = tooltip
-            ? ` <span class="info-icon" title="${tooltip}">ⓘ</span>`
-            : "";
-          return `<tr><td>${label}${infoIcon}</td><td align="right">${value}</td></tr>`;
-        })
-        .join("");
+      renderMetricTable("table-tail", tailRows, tailTooltipMap);
       const volTooltipMap = {
         "Recovery Factor": "Recovery Factor = cumulative return divided by max drawdown; higher values reflect quicker recoveries.",
         "Ulcer Index": "Ulcer Index quantifies depth and duration of drawdowns; lower is smoother equity curve.",
       };
-      const volTable = document.getElementById("table-vol-draw");
-      volTable.innerHTML = volRows
-        .map(({ label, value }) => {
-          const tooltip = volTooltipMap[label] || "";
-          const infoIcon = tooltip
-            ? ` <span class="info-icon" title="${tooltip}">ⓘ</span>`
-            : "";
-          return `<tr><td>${label}${infoIcon}</td><td align="right">${value}</td></tr>`;
-        })
-        .join("");
+      renderMetricTable("table-vol-draw", volRows, volTooltipMap);
       const parametersTable = document.getElementById("table-parameters");
       if (parameterRows.length && parametersTable) {
         parametersTable.innerHTML = parameterRows
@@ -938,10 +1180,22 @@
       const eoyTable = document.getElementById("table-eoy");
       eoyTable.innerHTML = eoyTableRows
         .map(
-          ({ year, annual_return, cumulative_return }) =>
-            `<tr><td>${year}</td><td align="right">${formatPercent(annual_return)}</td><td align="right">${formatPercent(
+          ({
+            year,
+            annual_return,
+            cumulative_return,
+            benchmark_return,
+            benchmark_cumulative,
+          }) => {
+            const benchmarkCells = hasBenchmark
+              ? `<td align="right">${formatPercent(benchmark_return)}</td><td align="right">${formatPercent(
+                  benchmark_cumulative
+                )}</td>`
+              : "";
+            return `<tr><td>${year}</td><td align="right">${formatPercent(annual_return)}</td>${benchmarkCells}<td align="right">${formatPercent(
               cumulative_return
-            )}</td></tr>`
+            )}</td></tr>`;
+          }
         )
         .join("");
 

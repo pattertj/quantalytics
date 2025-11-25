@@ -12,6 +12,7 @@ from quantalytics.reporting.metric_registry import (
 )
 from quantalytics.reporting.metrics import monthly_returns
 from quantalytics.reporting.tearsheet import (
+    CustomPanel,
     _format_date_iso,
     _format_date_readable,
     _format_summary_metric,
@@ -24,12 +25,20 @@ from quantalytics.reporting.tearsheet import (
 )
 
 DATA_PATH = Path(__file__).with_name("daily_returns.csv")
+BENCHMARK_PATH = Path(__file__).with_name("benchmark_returns.csv")
 
 
 def sample_returns() -> pd.Series:
     """Returns the deterministic series used for reporting tests."""
 
     df = pd.read_csv(DATA_PATH, parse_dates=["Date"]).set_index("Date")
+    return df["Return"]
+
+
+def sample_benchmark_returns() -> pd.Series:
+    """Benchmark series aligned with sample_returns dates."""
+
+    df = pd.read_csv(BENCHMARK_PATH, parse_dates=["Date"]).set_index("Date")
     return df["Return"]
 
 
@@ -128,6 +137,15 @@ def test_html_includes_header_logo():
     report = html(returns, title="Logo Report", header_logo=logo_url)
     assert f'src="{logo_url}"' in report.html
     assert "Client identity" in report.html
+
+
+def test_html_with_benchmark_adds_comparison_columns():
+    returns = sample_returns()
+    benchmark = sample_benchmark_returns().rename("AAPL")
+    report = html(returns, benchmark=benchmark)
+    assert "Return (AAPL)" in report.html
+    assert '<th style="text-align:right;">AAPL</th>' in report.html
+    report.to_html("benchmark.html")
 
 
 def test_html_renders_parameters_table(tmp_path):
@@ -256,3 +274,166 @@ def test_monthly_returns_preserves_native_type():
     # Result should be a pandas DataFrame (native type preserved)
     assert isinstance(result, pd.DataFrame)
     assert not hasattr(result, "to_pandas")  # Should be native pandas, not narwhals
+
+
+def test_custom_panel_with_only_charts():
+    """Test custom panel with only charts (should expand to 100% width)."""
+    import plotly.graph_objects as go
+
+    returns = sample_returns()
+
+    # Create a custom Plotly figure
+    custom_fig = go.Figure(
+        data=[go.Scatter(x=returns.index, y=returns.cumsum(), name="Cumulative")]
+    )
+    custom_fig.update_layout(title="Custom Analysis")
+
+    # Create panel with only charts
+    panel = CustomPanel(title="Chart Analysis", charts=[custom_fig])
+
+    # Generate tearsheet
+    report = html(returns, custom_panels=[panel])
+
+    # Verify panel appears in HTML
+    assert "Chart Analysis" in report.html
+    assert 'layout": "charts_only"' in report.html or "custom-panel-full" in report.html
+    assert "Custom Analysis" in report.html
+
+
+def test_custom_panel_with_only_metrics():
+    """Test custom panel with only metrics (should expand to 100% width)."""
+    returns = sample_returns()
+
+    # Create panel with only metrics
+    panel = CustomPanel(
+        title="Custom Metrics",
+        metrics={"Alpha": "2.3%", "Beta": "0.85", "R-Squared": "0.72"},
+    )
+
+    # Generate tearsheet
+    report = html(returns, custom_panels=[panel])
+
+    # Verify panel appears in HTML
+    assert "Custom Metrics" in report.html
+    assert "Alpha" in report.html
+    assert "2.3%" in report.html
+    assert "Beta" in report.html
+    assert "0.85" in report.html
+    assert "R-Squared" in report.html
+    assert "0.72" in report.html
+    assert (
+        'layout": "metrics_only"' in report.html or "custom-panel-full" in report.html
+    )
+
+
+def test_custom_panel_with_both_charts_and_metrics():
+    """Test custom panel with both charts and metrics (should use 70/30 split)."""
+    import plotly.graph_objects as go
+
+    returns = sample_returns()
+
+    # Create a custom Plotly figure
+    custom_fig = go.Figure(data=[go.Bar(x=["A", "B", "C"], y=[1, 2, 3])])
+    custom_fig.update_layout(title="Custom Bar Chart")
+
+    # Create panel with both charts and metrics
+    panel = CustomPanel(
+        title="Factor Analysis",
+        charts=[custom_fig],
+        metrics={"Sharpe": "1.5", "Sortino": "1.8", "Calmar": "2.1"},
+    )
+
+    # Generate tearsheet
+    report = html(returns, custom_panels=[panel])
+
+    # Verify panel appears in HTML with both components
+    assert "Factor Analysis" in report.html
+    assert "Custom Bar Chart" in report.html
+    assert "Sharpe" in report.html
+    assert "1.5" in report.html
+    assert "Sortino" in report.html
+    assert "1.8" in report.html
+    assert 'layout": "both"' in report.html or "custom-panel-split" in report.html
+
+
+def test_custom_panel_with_multiple_charts():
+    """Test custom panel with multiple charts."""
+    import plotly.graph_objects as go
+
+    returns = sample_returns()
+
+    # Create multiple custom Plotly figures
+    fig1 = go.Figure(
+        data=[go.Scatter(x=returns.index[:50], y=returns[:50], name="Recent")]
+    )
+    fig1.update_layout(title="Chart 1")
+
+    fig2 = go.Figure(data=[go.Bar(x=["Q1", "Q2", "Q3"], y=[5, 10, 8])])
+    fig2.update_layout(title="Chart 2")
+
+    # Create panel with multiple charts
+    panel = CustomPanel(title="Multi-Chart Panel", charts=[fig1, fig2])
+
+    # Generate tearsheet
+    report = html(returns, custom_panels=[panel])
+
+    # Verify both charts appear
+    assert "Multi-Chart Panel" in report.html
+    assert "Chart 1" in report.html
+    assert "Chart 2" in report.html
+
+
+def test_custom_panel_empty_panel_is_skipped():
+    """Test that empty custom panels (no charts or metrics) are skipped."""
+    returns = sample_returns()
+
+    # Create panel with no charts or metrics
+    empty_panel = CustomPanel(title="Empty Panel")
+
+    # Generate tearsheet
+    report = html(returns, custom_panels=[empty_panel])
+
+    # Empty panel should not appear in HTML
+    assert "Empty Panel" not in report.html
+
+
+def test_custom_panel_with_invalid_chart_is_handled():
+    """Test that invalid charts are handled gracefully."""
+    returns = sample_returns()
+
+    # Create panel with an object that will fail chart conversion
+    panel = CustomPanel(title="Invalid Chart Panel", charts=["not a plotly figure"])
+
+    # Generate tearsheet (should not crash)
+    report = html(returns, custom_panels=[panel])
+
+    # Panel title might appear, but chart will be skipped due to error
+    assert isinstance(report.html, str)
+
+
+def test_multiple_custom_panels():
+    """Test multiple custom panels are rendered in order."""
+    import plotly.graph_objects as go
+
+    returns = sample_returns()
+
+    # Create multiple panels
+    panel1 = CustomPanel(title="Panel One", metrics={"Metric A": "100"})
+    panel2 = CustomPanel(
+        title="Panel Two", charts=[go.Figure(data=[go.Scatter(x=[1, 2], y=[1, 2])])]
+    )
+    panel3 = CustomPanel(title="Panel Three", metrics={"Metric B": "200"})
+
+    # Generate tearsheet
+    report = html(returns, custom_panels=[panel1, panel2, panel3])
+
+    report.to_html("panel.html")
+
+    # Verify all panels appear
+    assert "Panel One" in report.html
+    assert "Panel Two" in report.html
+    assert "Panel Three" in report.html
+    assert "Metric A" in report.html
+    assert "100" in report.html
+    assert "Metric B" in report.html
+    assert "200" in report.html
