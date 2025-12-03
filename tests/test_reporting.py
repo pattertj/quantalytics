@@ -5,13 +5,13 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from quantalytics.reporting import html
-from quantalytics.reporting.metric_registry import (
+from quantalytics.reports import html
+from quantalytics.reports.metric_registry import (
     SUMMARY_METRIC_REGISTRY,
     resolve_summary_specs,
 )
-from quantalytics.reporting.metrics import monthly_returns
-from quantalytics.reporting.tearsheet import (
+from quantalytics.reports.metrics import monthly_returns
+from quantalytics.reports.tearsheet import (
     CustomPanel,
     _format_date_iso,
     _format_date_readable,
@@ -20,7 +20,7 @@ from quantalytics.reporting.tearsheet import (
     _period_return,
     _scalar_value,
 )
-from quantalytics.reporting.tearsheet import (
+from quantalytics.reports.tearsheet import (
     _resolve_summary_specs as _resolve_summary_specs_tearsheet,
 )
 

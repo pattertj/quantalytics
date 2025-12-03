@@ -2,7 +2,9 @@
 
 from importlib import import_module
 
-__all__ = ["analytics", "charts", "reports"]
+from quantalytics import analytics, charts, reports
+
+__all__: list[str] = ["analytics", "charts", "reports"]
 
 
 def __getattr__(name: str):

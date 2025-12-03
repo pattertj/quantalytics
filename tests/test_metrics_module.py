@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from quantalytics.analytics import metrics, stats
-from quantalytics.reporting import metrics as reporting_metrics
+from quantalytics.reports import metrics as reporting_metrics
 from quantalytics.utils import timeseries as timeseries_utils
 
 
