@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "quantalytics"
-version = "0.1.19"
+version = "0.1.20"
 description = "Modern quantitative analysis library for portfolio analytics, charts, and reports"
 readme = "README.md"
 keywords = [
@@ -70,10 +70,10 @@ packages = [
   "quantalytics",
   "quantalytics.analytics",
   "quantalytics.charts",
-  "quantalytics.reporting",
+  "quantalytics.reports",
   "quantalytics.utils",
 ]
 include-package-data = true
 
 [tool.setuptools.package-data]
-"quantalytics.reporting" = [ "templates/*.html" ]
+"quantalytics.reports" = [ "templates/*.html" ]
