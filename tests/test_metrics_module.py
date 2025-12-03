@@ -5,7 +5,8 @@ import pandas as pd
 import pytest
 
 from quantalytics.analytics import metrics, stats
-from quantalytics.reports import metrics as reporting_metrics
+from quantalytics.reports import metrics as reporting_metrics_func
+from quantalytics.reports.metrics import _coerce_numeric, _format_days, _format_metric
 from quantalytics.utils import timeseries as timeseries_utils
 
 
@@ -1187,9 +1188,13 @@ def test_rolling_sortino_higher_than_sharpe():
 
 
 def test_performance_metrics_helpers_handle_invalid_inputs(sample_returns):
-    summary = reporting_metrics.performance_summary(sample_returns)
-    assert math.isnan(summary._coerce_numeric(pd.Series(dtype=float)))
-    assert math.isnan(summary._coerce_numeric("not-a-number"))  # ty: ignore
-    assert summary._coerce_numeric(pd.Series([0.05])) == pytest.approx(0.05)
-    assert summary._format_metric(float("nan")) == "N/A"
-    assert summary._format_days(float("nan")) == "0 days"
+    # Test the new helper functions instead of the old PerformanceMetrics methods
+    assert math.isnan(_coerce_numeric(float("nan")))
+    assert math.isnan(_coerce_numeric("not-a-number"))  # type: ignore
+    assert _coerce_numeric(0.05) == pytest.approx(0.05)
+    assert _format_metric(float("nan")) == "N/A"
+    assert _format_days(float("nan")) == "0 days"
+
+    # Verify that metrics function returns a Series
+    summary = reporting_metrics_func(sample_returns)
+    assert hasattr(summary, "to_dict") or hasattr(summary, "__getitem__")
