@@ -185,6 +185,23 @@ def _annualize_return(total_return: float, years: float) -> float:
     return float((1 + total_return) ** (1 / years) - 1)
 
 
+def _round_metric(value: Any, decimals: int = 4) -> float:
+    """Round a metric value to the specified number of decimal places.
+
+    Args:
+        value: The metric value to round (int, float, or Series)
+        decimals: Number of decimal places (default: 4)
+
+    Returns:
+        Rounded float value
+    """
+    try:
+        return round(float(value), decimals)
+    except (TypeError, ValueError):
+        # If conversion fails, return 0.0
+        return 0.0
+
+
 @nw.narwhalify(eager_only=True)
 def monthly_returns(
     returns: IntoSeries,
@@ -416,46 +433,54 @@ def metrics(
             metrics_series = pd.Series(metrics_dict)
         return nw.from_native(metrics_series, series_only=True)
 
-    cum_return = comp(returns=series)
-    ann_ret = cagr(returns=series, periods=periods)
-    ann_vol = volatility(returns=series, periods=periods)
-    sharpe_ratio = sharpe(returns=series, rf=risk_free_rate, periods=periods)
-    sortino_ratio = sortino(returns=series, rf=risk_free_rate, periods=periods)
-    calmar_ratio = calmar(returns=series, periods=periods)
-    mdd = max_drawdown(returns=series)
-    smart_sharpe_ratio = smart_sharpe(
-        returns=series, rf=risk_free_rate, periods=periods
+    cum_return = _round_metric(comp(returns=series))
+    ann_ret = _round_metric(cagr(returns=series, periods=periods))
+    ann_vol = _round_metric(volatility(returns=series, periods=periods))
+    sharpe_ratio = _round_metric(
+        sharpe(returns=series, rf=risk_free_rate, periods=periods)
     )
-    smart_sortino_ratio = smart_sortino(
-        returns=series, rf=risk_free_rate, periods=periods
+    sortino_ratio = _round_metric(
+        sortino(returns=series, rf=risk_free_rate, periods=periods)
     )
-    omega_ratio = omega(returns=series)
-    romad_ratio = romad(returns=series, periods=periods)
+    calmar_ratio = _round_metric(calmar(returns=series, periods=periods))
+    mdd = _round_metric(max_drawdown(returns=series))
+    smart_sharpe_ratio = _round_metric(
+        smart_sharpe(returns=series, rf=risk_free_rate, periods=periods)
+    )
+    smart_sortino_ratio = _round_metric(
+        smart_sortino(returns=series, rf=risk_free_rate, periods=periods)
+    )
+    omega_ratio = _round_metric(omega(returns=series))
+    romad_ratio = _round_metric(romad(returns=series, periods=periods))
     drawdown_series = to_drawdown_series(returns=base_series, prepare_returns=False)
     details = drawdown_details(drawdown_series)
-    longest_dd_days = 0.0 if details.empty else float(details["days"].max())
-    average_drawdown = 0.0 if details.empty else float(details["max drawdown"].mean())
-    average_dd_days = 0.0 if details.empty else float(details["days"].mean())
+    longest_dd_days = 0.0 if details.empty else _round_metric(details["days"].max())
+    average_drawdown = (
+        0.0 if details.empty else _round_metric(details["max drawdown"].mean())
+    )
+    average_dd_days = 0.0 if details.empty else _round_metric(details["days"].mean())
     underwater_pct = (
-        float(((drawdown_series < 0).sum() / len(drawdown_series)) * 100)
+        _round_metric(((drawdown_series < 0).sum() / len(drawdown_series)) * 100)
         if len(drawdown_series)
         else 0.0
     )
-    recovery = recovery_factor(
-        returns=base_series, rf=risk_free_rate, prepare_returns=False
+    recovery = _round_metric(
+        recovery_factor(returns=base_series, rf=risk_free_rate, prepare_returns=False)
     )
-    ulcer_idx = ulcer_index(returns=base_series, prepare_returns=False)
-    skewness = skew(returns=series)
-    kurt = kurtosis(returns=series)
-    var_value = value_at_risk(returns=base_series, confidence=0.95)
-    es_value = conditional_value_at_risk(returns=base_series, confidence=0.95)
-    serenity = serenity_index(returns=series, rf=risk_free_rate)
+    ulcer_idx = _round_metric(ulcer_index(returns=base_series, prepare_returns=False))
+    skewness = _round_metric(skew(returns=series))
+    kurt = _round_metric(kurtosis(returns=series))
+    var_value = _round_metric(value_at_risk(returns=base_series, confidence=0.95))
+    es_value = _round_metric(
+        conditional_value_at_risk(returns=base_series, confidence=0.95)
+    )
+    serenity = _round_metric(serenity_index(returns=series, rf=risk_free_rate))
     time_in_market = (
-        float((base_series.abs() > 0).sum() / len(base_series))
+        _round_metric((base_series.abs() > 0).sum() / len(base_series))
         if len(base_series)
         else 0.0
     )
-    avg_up_day = float(
+    avg_up_day = _round_metric(
         avg_win(
             returns=base_series,
             aggregate=None,
@@ -463,7 +488,7 @@ def metrics(
             prepare_returns=False,
         )
     )
-    avg_down_day = float(
+    avg_down_day = _round_metric(
         avg_loss(
             returns=base_series,
             aggregate=None,
@@ -471,7 +496,7 @@ def metrics(
             prepare_returns=False,
         )
     )
-    avg_up_week = float(
+    avg_up_week = _round_metric(
         avg_win(
             returns=base_series,
             aggregate="W",
@@ -479,7 +504,7 @@ def metrics(
             prepare_returns=False,
         )
     )
-    avg_down_week = float(
+    avg_down_week = _round_metric(
         avg_loss(
             returns=base_series,
             aggregate="W",
@@ -487,7 +512,7 @@ def metrics(
             prepare_returns=False,
         )
     )
-    avg_up_month = float(
+    avg_up_month = _round_metric(
         avg_win(
             returns=base_series,
             aggregate="ME",
@@ -495,7 +520,7 @@ def metrics(
             prepare_returns=False,
         )
     )
-    avg_down_month = float(
+    avg_down_month = _round_metric(
         avg_loss(
             returns=base_series,
             aggregate="ME",
@@ -503,7 +528,7 @@ def metrics(
             prepare_returns=False,
         )
     )
-    avg_up_quarter = float(
+    avg_up_quarter = _round_metric(
         avg_win(
             returns=base_series,
             aggregate="QE",
@@ -511,7 +536,7 @@ def metrics(
             prepare_returns=False,
         )
     )
-    avg_down_quarter = float(
+    avg_down_quarter = _round_metric(
         avg_loss(
             returns=base_series,
             aggregate="QE",
@@ -519,7 +544,7 @@ def metrics(
             prepare_returns=False,
         )
     )
-    avg_up_year = float(
+    avg_up_year = _round_metric(
         avg_win(
             returns=base_series,
             aggregate="YE",
@@ -527,7 +552,7 @@ def metrics(
             prepare_returns=False,
         )
     )
-    avg_down_year = float(
+    avg_down_year = _round_metric(
         avg_loss(
             returns=base_series,
             aggregate="YE",
@@ -536,44 +561,46 @@ def metrics(
         )
     )
     nonzero_days = int((base_series != 0).sum())
-    daily_win_ratio = win_rate(
-        returns=base_series, aggregate=None, compounded=True, prepare_returns=False
+    daily_win_ratio = _round_metric(
+        win_rate(
+            returns=base_series, aggregate=None, compounded=True, prepare_returns=False
+        )
     )
     winning_days = int(round(daily_win_ratio * nonzero_days))
     losing_days = max(0, nonzero_days - winning_days)
-    expected_daily = float(
+    expected_daily = _round_metric(
         expected_return(returns=base_series, compounded=True, prepare_returns=False)
     )
-    expected_weekly = float(
+    expected_weekly = _round_metric(
         expected_return(
             returns=base_series, aggregate="W", compounded=True, prepare_returns=False
         )
     )
-    expected_monthly = float(
+    expected_monthly = _round_metric(
         expected_return(
             returns=base_series, aggregate="ME", compounded=True, prepare_returns=False
         )
     )
-    expected_quarterly = float(
+    expected_quarterly = _round_metric(
         expected_return(
             returns=base_series, aggregate="QE", compounded=True, prepare_returns=False
         )
     )
-    expected_yearly = float(
+    expected_yearly = _round_metric(
         expected_return(
             returns=base_series, aggregate="YE", compounded=True, prepare_returns=False
         )
     )
-    best_day = float(best(base_series))
-    worst_day = float(worst(base_series))
-    best_week = float(best(base_series, aggregate="W"))
-    worst_week = float(worst(base_series, aggregate="W"))
-    best_month = float(best(base_series, aggregate="ME"))
-    worst_month = float(worst(base_series, aggregate="ME"))
-    best_quarter = float(best(base_series, aggregate="QE"))
-    worst_quarter = float(worst(base_series, aggregate="QE"))
-    best_year = float(best(base_series, aggregate="YE"))
-    worst_year = float(worst(base_series, aggregate="YE"))
+    best_day = _round_metric(best(base_series))
+    worst_day = _round_metric(worst(base_series))
+    best_week = _round_metric(best(base_series, aggregate="W"))
+    worst_week = _round_metric(worst(base_series, aggregate="W"))
+    best_month = _round_metric(best(base_series, aggregate="ME"))
+    worst_month = _round_metric(worst(base_series, aggregate="ME"))
+    best_quarter = _round_metric(best(base_series, aggregate="QE"))
+    worst_quarter = _round_metric(worst(base_series, aggregate="QE"))
+    best_year = _round_metric(best(base_series, aggregate="YE"))
+    worst_year = _round_metric(worst(base_series, aggregate="YE"))
 
     # Calculate new metrics for quantstats_lumi compatibility
     import pandas as pd
@@ -601,40 +628,42 @@ def metrics(
     )
 
     # Probabilistic Sharpe Ratio
-    psr = probabilistic_sharpe_ratio(series, rf=risk_free_rate, periods=periods)
+    psr = _round_metric(
+        probabilistic_sharpe_ratio(series, rf=risk_free_rate, periods=periods)
+    )
 
     # Sortino / sqrt(2) ratios
     from math import sqrt
 
-    sortino_sqrt2 = sortino_ratio / sqrt(2)
-    smart_sortino_sqrt2 = smart_sortino_ratio / sqrt(2)
+    sortino_sqrt2 = _round_metric(sortino_ratio / sqrt(2))
+    smart_sortino_sqrt2 = _round_metric(smart_sortino_ratio / sqrt(2))
 
     # Period returns
-    mtd_return = _get_mtd_return(base_series)
-    ytd_return = _get_ytd_return(base_series)
-    return_3m = _get_period_return(base_series, months_back=3)
-    return_6m = _get_period_return(base_series, months_back=6)
-    return_1y = _get_period_return(base_series, months_back=12)
-    return_3y = _get_period_return(base_series, months_back=36)
-    return_5y = _get_period_return(base_series, months_back=60)
-    return_10y = _get_period_return(base_series, months_back=120)
+    mtd_return = _round_metric(_get_mtd_return(base_series))
+    ytd_return = _round_metric(_get_ytd_return(base_series))
+    return_3m = _round_metric(_get_period_return(base_series, months_back=3))
+    return_6m = _round_metric(_get_period_return(base_series, months_back=6))
+    return_1y = _round_metric(_get_period_return(base_series, months_back=12))
+    return_3y = _round_metric(_get_period_return(base_series, months_back=36))
+    return_5y = _round_metric(_get_period_return(base_series, months_back=60))
+    return_10y = _round_metric(_get_period_return(base_series, months_back=120))
 
     # Ann ualized multi-year returns
-    return_3y_ann = _annualize_return(return_3y, 3.0)
-    return_5y_ann = _annualize_return(return_5y, 5.0)
-    return_10y_ann = _annualize_return(return_10y, 10.0)
+    return_3y_ann = _round_metric(_annualize_return(return_3y, 3.0))
+    return_5y_ann = _round_metric(_annualize_return(return_5y, 5.0))
+    return_10y_ann = _round_metric(_annualize_return(return_10y, 10.0))
     # All-time annualized is just CAGR
     return_alltime_ann = ann_ret
 
     # Win rates by period
-    monthly_win_ratio = win_rate(
-        base_series, aggregate="ME", compounded=True, prepare_returns=False
+    monthly_win_ratio = _round_metric(
+        win_rate(base_series, aggregate="ME", compounded=True, prepare_returns=False)
     )
-    quarterly_win_ratio = win_rate(
-        base_series, aggregate="QE", compounded=True, prepare_returns=False
+    quarterly_win_ratio = _round_metric(
+        win_rate(base_series, aggregate="QE", compounded=True, prepare_returns=False)
     )
-    yearly_win_ratio = win_rate(
-        base_series, aggregate="YE", compounded=True, prepare_returns=False
+    yearly_win_ratio = _round_metric(
+        win_rate(base_series, aggregate="YE", compounded=True, prepare_returns=False)
     )
 
     # Benchmark-dependent metrics (only if benchmark provided)
@@ -649,17 +678,19 @@ def metrics(
         try:
             # Note: benchmark_pd is already normalized, but these functions will
             # normalize again with prepare_returns=True (default). This is safe.
-            correlation = float(benchmark_correlation(base_series, benchmark_pd))
-            r2_value = float(r_squared(base_series, benchmark_pd))
-            info_ratio = float(information_ratio(base_series, benchmark_pd))
+            correlation = _round_metric(
+                benchmark_correlation(base_series, benchmark_pd)
+            )
+            r2_value = _round_metric(r_squared(base_series, benchmark_pd))
+            info_ratio = _round_metric(information_ratio(base_series, benchmark_pd))
             greeks_dict = greeks(
                 base_series,
                 benchmark_pd,
                 periods=float(periods) if periods is not None else 365.0,
             )
-            beta = float(greeks_dict.get("beta", 0.0))
-            alpha = float(greeks_dict.get("alpha", 0.0))
-            treynor = float(
+            beta = _round_metric(greeks_dict.get("beta", 0.0))
+            alpha = _round_metric(greeks_dict.get("alpha", 0.0))
+            treynor = _round_metric(
                 treynor_ratio(
                     base_series,
                     benchmark_pd,
