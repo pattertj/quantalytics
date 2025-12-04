@@ -1004,10 +1004,20 @@ def html(
     )
     consistency_rows = format_consistency_rows(metrics)
 
-    # Access Series values using indexing
-    sharpe_baseline = _scalar_value(metrics["sharpe"])
-    sortino_baseline = _scalar_value(metrics["sortino"])
-    vol_baseline = _scalar_value(metrics["annualized_volatility"])
+    # Access Series values using indexing (with backward compatibility for new metric names)
+    sharpe_baseline = _scalar_value(metrics.get("Sharpe", metrics.get("sharpe", 0.0)))
+    sortino_baseline = _scalar_value(
+        metrics.get("Sortino", metrics.get("sortino", 0.0))
+    )
+    # New name is scaled to %, so divide by 100 if using new name
+    vol_value = metrics.get(
+        "Volatility (ann.) %", metrics.get("annualized_volatility", 0.0)
+    )
+    vol_baseline = (
+        _scalar_value(vol_value) / 100
+        if "Volatility (ann.) %" in metrics
+        else _scalar_value(vol_value)
+    )
     summary_dates = _format_index_dates(summary_series.index)
     summary_values = (summary_series * 100).round(2).tolist()
     html = template.render(

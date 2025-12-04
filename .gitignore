@@ -16,3 +16,4 @@ coverage/
 /*.py
 .vscode/
 /*.html
+/.serena

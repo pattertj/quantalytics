@@ -1652,3 +1652,149 @@ def kelly_criterion(
     lose_prob = 1 - win_prob
 
     return ((win_loss_ratio * win_prob) - lose_prob) / win_loss_ratio
+
+
+@overload
+def probabilistic_sharpe_ratio(
+    returns: Series,
+    rf: float = 0.0,
+    periods: float | None = None,
+    benchmark_sr: float = 0.0,
+) -> float: ...
+@overload
+def probabilistic_sharpe_ratio(
+    returns: DataFrame,
+    rf: float = 0.0,
+    periods: float | None = None,
+    benchmark_sr: float = 0.0,
+) -> Series: ...
+def probabilistic_sharpe_ratio(
+    returns: Series | DataFrame,
+    rf: float = 0.0,
+    periods: float | None = None,
+    benchmark_sr: float = 0.0,
+) -> float | Series:
+    """Calculate the Probabilistic Sharpe Ratio (PSR).
+
+    The Probabilistic Sharpe Ratio estimates the probability that the true Sharpe
+    ratio exceeds a benchmark value, accounting for the statistical uncertainty in
+    the Sharpe ratio estimate. This provides a more robust assessment of risk-adjusted
+    performance by incorporating higher moments (skewness and kurtosis) and sample size.
+
+    Based on: Bailey, David H., and Marcos López de Prado (2012).
+    "The Sharpe Ratio Efficient Frontier." Journal of Risk 15.2: 3-44.
+
+    Args:
+        returns (Series | DataFrame): Portfolio returns data.
+        rf (float, optional): Risk-free rate expressed as a yearly (annualized) return.
+            Defaults to 0.0.
+        periods (int, optional): Number of periods per year for annualization.
+            Defaults to inferred from data. Required when rf is non-zero.
+        benchmark_sr (float, optional): Benchmark Sharpe ratio to test against.
+            Defaults to 0.0 (tests if Sharpe > 0).
+
+    Returns:
+        float | Series: Probability (0 to 1) that the true Sharpe ratio exceeds
+            the benchmark. Returns float for Series input, Series for DataFrame input.
+            Values closer to 1 indicate higher confidence in outperformance.
+            - PSR > 0.95: High confidence the strategy has positive Sharpe
+            - PSR > 0.75: Moderate confidence
+            - PSR < 0.50: Low confidence, possibly due to luck
+
+    Examples:
+        >>> returns = pd.Series([0.01, -0.02, 0.03, -0.01, 0.02, 0.01])
+        >>> probabilistic_sharpe_ratio(returns, rf=0.02, periods=252)
+        0.68  # 68% probability that true Sharpe > 0
+
+        >>> # Test against a benchmark Sharpe of 1.0
+        >>> probabilistic_sharpe_ratio(returns, rf=0.02, periods=252, benchmark_sr=1.0)
+        0.23  # Only 23% probability that true Sharpe > 1.0
+
+    Notes:
+        - Accounts for skewness and kurtosis in the return distribution
+        - More conservative than standard Sharpe ratio
+        - Useful for comparing strategies with different sample sizes
+        - Higher sample sizes lead to higher PSR for same observed Sharpe
+        - Adjusts for non-normality in returns
+        - Formula: PSR = Φ(√(n-1) * SR / √(1 - γ*SR + (κ-1)/4 * SR²))
+          where Φ is the CDF of standard normal, γ is skewness, κ is kurtosis
+
+    See Also:
+        sharpe: Standard Sharpe ratio calculation
+        smart_sharpe: Sharpe with autocorrelation adjustment
+        skew: Return distribution skewness
+        kurtosis: Return distribution kurtosis
+
+    References:
+        Bailey & López de Prado (2012): "The Sharpe Ratio Efficient Frontier"
+        https://papers.ssrn.com/sol3/papers.cfm?abstract_id=1821643
+    """
+    if rf != 0 and periods is None:
+        raise ValueError("When rf is non-zero, periods must be specified")
+
+    normalized_periods = _coerce_periods(periods)
+    normalized = _utils.normalize_returns(
+        data=returns, rf=rf, nperiods=normalized_periods
+    )
+
+    def _psr(series: Series) -> float:
+        """Calculate PSR for a single series."""
+        if len(series) < 2:
+            return float("nan")
+
+        n = len(series)
+
+        # Calculate observed Sharpe ratio
+        sr = sharpe(series, rf=0, periods=periods, annualize=False)
+
+        # Calculate skewness and kurtosis
+        skewness = series.skew()
+        kurt = series.kurtosis()
+
+        # Handle edge cases
+        if _np.isnan(sr) or _np.isinf(sr):
+            return float("nan")
+
+        # Calculate the adjustment factor for non-normality
+        # This accounts for the impact of skewness and kurtosis on Sharpe ratio uncertainty
+        adjustment = 1 - (skewness * sr) + ((kurt - 1) / 4) * (sr**2)
+
+        # Ensure adjustment is positive
+        if adjustment <= 0:
+            return float("nan")
+
+        # Calculate the test statistic
+        # This measures how many standard errors the observed SR is from the benchmark
+        test_stat = _np.sqrt(n - 1) * (sr - benchmark_sr) / _np.sqrt(adjustment)
+
+        # Return the probability using the cumulative distribution function
+        # of the standard normal distribution
+        return float(_norm.cdf(test_stat))
+
+    if isinstance(normalized, DataFrame):
+        return Series({col: _psr(normalized[col]) for col in normalized.columns})
+    return _psr(normalized)
+
+
+@overload
+def psr(
+    returns: Series,
+    rf: float = 0.0,
+    periods: float | None = None,
+    benchmark_sr: float = 0.0,
+) -> float: ...
+@overload
+def psr(
+    returns: DataFrame,
+    rf: float = 0.0,
+    periods: float | None = None,
+    benchmark_sr: float = 0.0,
+) -> Series: ...
+def psr(
+    returns: Series | DataFrame,
+    rf: float = 0.0,
+    periods: float | None = None,
+    benchmark_sr: float = 0.0,
+) -> float | Series:
+    """Alias for probabilistic_sharpe_ratio."""
+    return probabilistic_sharpe_ratio(returns, rf, periods, benchmark_sr)
