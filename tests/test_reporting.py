@@ -437,3 +437,78 @@ def test_multiple_custom_panels():
     assert "100" in report.html
     assert "Metric B" in report.html
     assert "200" in report.html
+
+
+def test_portfolio_summary_values_populated():
+    """Test that portfolio summary cards are populated with actual values, not N/A."""
+    returns = sample_returns()
+
+    # Generate tearsheet with default summary stats
+    report = html(returns, title="Summary Test", risk_free_rate=0.02, periods=252)
+
+    # Check that Portfolio Summary section exists
+    assert "Portfolio Summary" in report.html
+
+    # Find the portfolio summary section
+    summary_start = report.html.find("Portfolio Summary")
+    assert summary_start != -1, "Portfolio Summary section not found"
+
+    # Extract a reasonable chunk of HTML after "Portfolio Summary"
+    summary_section = report.html[summary_start : summary_start + 3000]
+
+    # Default summary stats include: cagr, sharpe, max_drawdown, win_rate, romad, sortino
+    # These should NOT all be N/A
+    na_count = summary_section.count("N/A")
+
+    # The summary should not be entirely N/A values (allow max 1 N/A for edge cases)
+    assert na_count <= 1, f"Too many N/A values in portfolio summary: {na_count}"
+
+    # Should have actual metric values
+    # Some metrics have % suffix (max_drawdown, win_rate), others don't (sharpe, romad)
+    # Check that we have at least some percentage values AND numeric values
+    assert summary_section.count("%") >= 2, "Not enough percentage values in summary"
+
+    # Check for numeric patterns that indicate populated values (e.g., "0.80", "15.20")
+    # We should see decimal numbers which indicate actual calculated values
+    import re
+
+    numeric_values = re.findall(r"\d+\.\d+", summary_section)
+    assert len(numeric_values) >= 4, (
+        f"Not enough numeric values in summary: {len(numeric_values)}"
+    )
+
+    # Check that specific metrics are populated
+    assert "CAGR" in summary_section
+    assert "Sharpe Ratio" in summary_section
+    assert "Max Drawdown" in summary_section
+    assert "Win Rate" in summary_section
+    assert "RoMaD" in summary_section
+    assert "Sortino" in summary_section or "Sortino Ratio" in summary_section
+
+
+def test_portfolio_summary_with_custom_metrics():
+    """Test portfolio summary with custom metric selection."""
+    returns = sample_returns()
+
+    # Generate tearsheet with custom summary stats
+    report = html(
+        returns,
+        summary_stats=["sharpe", "sortino", "calmar", "omega"],
+        risk_free_rate=0.02,
+        periods=252,
+    )
+
+    # Check that custom metrics are populated
+    summary_start = report.html.find("Portfolio Summary")
+    assert summary_start != -1
+    summary_section = report.html[summary_start : summary_start + 3000]
+
+    # Custom metrics should appear
+    assert "Sharpe Ratio" in summary_section
+    assert "Sortino" in summary_section or "Sortino Ratio" in summary_section
+    assert "Calmar" in summary_section or "Calmar Ratio" in summary_section
+    assert "Omega" in summary_section or "Omega Ratio" in summary_section
+
+    # Should have actual values, not all N/A
+    na_count = summary_section.count("N/A")
+    assert na_count <= 1, f"Too many N/A values with custom metrics: {na_count}"

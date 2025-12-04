@@ -21,55 +21,58 @@ class SummaryMetricSpec:
 SUMMARY_METRIC_REGISTRY: dict[str, SummaryMetricSpec] = {
     # Returns / performance
     "annualized_return": SummaryMetricSpec(
-        "annualized_return", "CAGR", scale=100, suffix="%"
+        "CAGR﹪",
+        "CAGR",
+        scale=1,
+        suffix="",  # New metrics already scaled to %
     ),
-    "cagr": SummaryMetricSpec("annualized_return", "CAGR", scale=100, suffix="%"),
+    "cagr": SummaryMetricSpec("CAGR﹪", "CAGR", scale=1, suffix=""),
     "cumulative_return": SummaryMetricSpec(
-        "cumulative_return", "Cumulative Return", scale=100, suffix="%"
+        "Cumulative Return %", "Cumulative Return", scale=1, suffix="%"
     ),
     "expected_daily": SummaryMetricSpec(
-        "expected_daily", "Expected Daily", scale=100, suffix="%"
+        "Expected Daily %", "Expected Daily", scale=1, suffix="%"
     ),
     "expected_weekly": SummaryMetricSpec(
-        "expected_weekly", "Expected Weekly", scale=100, suffix="%"
+        "Expected Weekly %", "Expected Weekly", scale=1, suffix="%"
     ),
     "expected_monthly": SummaryMetricSpec(
-        "expected_monthly", "Expected Monthly", scale=100, suffix="%"
+        "Expected Monthly %", "Expected Monthly", scale=1, suffix="%"
     ),
     "expected_quarterly": SummaryMetricSpec(
-        "expected_quarterly", "Expected Quarterly", scale=100, suffix="%"
+        "Expected Quarterly %", "Expected Quarterly", scale=1, suffix="%"
     ),
     "expected_yearly": SummaryMetricSpec(
-        "expected_yearly", "Expected Yearly", scale=100, suffix="%"
+        "Expected Yearly %", "Expected Yearly", scale=1, suffix="%"
     ),
-    "best_day": SummaryMetricSpec("best_day", "Best Day", scale=100, suffix="%"),
-    "worst_day": SummaryMetricSpec("worst_day", "Worst Day", scale=100, suffix="%"),
-    "best_month": SummaryMetricSpec("best_month", "Best Month", scale=100, suffix="%"),
+    "best_day": SummaryMetricSpec("Best Day %", "Best Day", scale=1, suffix="%"),
+    "worst_day": SummaryMetricSpec("Worst Day %", "Worst Day", scale=1, suffix="%"),
+    "best_month": SummaryMetricSpec("Best Month %", "Best Month", scale=1, suffix="%"),
     "worst_month": SummaryMetricSpec(
-        "worst_month", "Worst Month", scale=100, suffix="%"
+        "Worst Month %", "Worst Month", scale=1, suffix="%"
     ),
-    "best_year": SummaryMetricSpec("best_year", "Best Year", scale=100, suffix="%"),
-    "worst_year": SummaryMetricSpec("worst_year", "Worst Year", scale=100, suffix="%"),
+    "best_year": SummaryMetricSpec("Best Year %", "Best Year", scale=1, suffix="%"),
+    "worst_year": SummaryMetricSpec("Worst Year %", "Worst Year", scale=1, suffix="%"),
     "avg_up_month": SummaryMetricSpec(
-        "avg_up_month", "Avg Up Month", scale=100, suffix="%"
+        "Avg. Up Month %", "Avg Up Month", scale=1, suffix="%"
     ),
     "avg_down_month": SummaryMetricSpec(
-        "avg_down_month", "Avg Down Month", scale=100, suffix="%"
+        "Avg. Down Month %", "Avg Down Month", scale=1, suffix="%"
     ),
     # Risk / ratios
-    "sharpe": SummaryMetricSpec("sharpe", "Sharpe Ratio"),
-    "sortino": SummaryMetricSpec("sortino", "Sortino Ratio"),
-    "smart_sharpe": SummaryMetricSpec("smart_sharpe", "Smart Sharpe"),
-    "smart_sortino": SummaryMetricSpec("smart_sortino", "Smart Sortino"),
-    "calmar": SummaryMetricSpec("calmar", "Calmar Ratio"),
-    "romad": SummaryMetricSpec("romad", "RoMaD"),
-    "omega": SummaryMetricSpec("omega", "Omega Ratio"),
-    "serenity_index": SummaryMetricSpec("serenity_index", "Serenity Index"),
+    "sharpe": SummaryMetricSpec("Sharpe", "Sharpe Ratio"),
+    "sortino": SummaryMetricSpec("Sortino", "Sortino Ratio"),
+    "smart_sharpe": SummaryMetricSpec("Smart Sharpe", "Smart Sharpe"),
+    "smart_sortino": SummaryMetricSpec("Smart Sortino", "Smart Sortino"),
+    "calmar": SummaryMetricSpec("Calmar", "Calmar Ratio"),
+    "romad": SummaryMetricSpec("RoMaD", "RoMaD"),
+    "omega": SummaryMetricSpec("Omega", "Omega Ratio"),
+    "serenity_index": SummaryMetricSpec("Serenity Index", "Serenity Index"),
     "time_in_market": SummaryMetricSpec(
-        "time_in_market", "Time in Market", scale=100, suffix="%"
+        "Time in Market %", "Time in Market", scale=1, suffix="%"
     ),
-    "recovery_factor": SummaryMetricSpec("recovery_factor", "Recovery Factor"),
-    "ulcer_index": SummaryMetricSpec("ulcer_index", "Ulcer Index"),
+    "recovery_factor": SummaryMetricSpec("Recovery Factor", "Recovery Factor"),
+    "ulcer_index": SummaryMetricSpec("Ulcer Index", "Ulcer Index"),
     "ulcer_performance_index": SummaryMetricSpec(
         "ulcer_index", "Ulcer Performance Index"
     ),
@@ -80,41 +83,43 @@ SUMMARY_METRIC_REGISTRY: dict[str, SummaryMetricSpec] = {
     "win_loss_ratio": SummaryMetricSpec("win_loss_ratio", "Win/Loss Ratio"),
     # Volatility / drawdown
     "annualized_volatility": SummaryMetricSpec(
-        "annualized_volatility", "Annualized Vol", scale=100, suffix="%"
+        "Volatility (ann.) %", "Annualized Vol", scale=1, suffix="%"
     ),
     "volatility": SummaryMetricSpec(
-        "annualized_volatility", "Annualized Vol", scale=100, suffix="%"
+        "Volatility (ann.) %", "Annualized Vol", scale=1, suffix="%"
     ),
     "max_drawdown": SummaryMetricSpec(
-        "max_drawdown", "Max Drawdown", scale=100, suffix="%"
+        "Max Drawdown %", "Max Drawdown", scale=1, suffix="%"
     ),
     "longest_drawdown_days": SummaryMetricSpec(
-        "longest_drawdown_days", "Longest DD Days", decimals=0, suffix=" days"
+        "Longest DD Days", "Longest DD Days", decimals=0, suffix=" days"
     ),
     "average_drawdown": SummaryMetricSpec(
-        "average_drawdown", "Average Drawdown", suffix="%"
+        "Avg. Drawdown %", "Average Drawdown", scale=1, suffix="%"
     ),
     "average_drawdown_days": SummaryMetricSpec(
-        "average_drawdown_days", "Average DD Days", decimals=0, suffix=" days"
+        "Avg. Drawdown Days", "Average DD Days", decimals=0, suffix=" days"
     ),
-    "underwater_pct": SummaryMetricSpec("underwater_pct", "Underwater %", suffix="%"),
+    "underwater_pct": SummaryMetricSpec(
+        "Underwater %", "Underwater %", scale=1, suffix="%"
+    ),
     # Tails / distribution
     "value_at_risk": SummaryMetricSpec(
-        "value_at_risk", "Daily VaR", scale=100, suffix="%"
+        "Daily Value-at-Risk %", "Daily VaR", scale=1, suffix="%"
     ),
-    "var": SummaryMetricSpec("value_at_risk", "Daily VaR", scale=100, suffix="%"),
+    "var": SummaryMetricSpec("Daily Value-at-Risk %", "Daily VaR", scale=1, suffix="%"),
     "expected_shortfall": SummaryMetricSpec(
-        "expected_shortfall", "Expected Shortfall", scale=100, suffix="%"
+        "Expected Shortfall (cVaR) %", "Expected Shortfall", scale=1, suffix="%"
     ),
     "conditional_value_at_risk": SummaryMetricSpec(
-        "expected_shortfall", "Expected Shortfall", scale=100, suffix="%"
+        "Expected Shortfall (cVaR) %", "Expected Shortfall", scale=1, suffix="%"
     ),
-    "skewness": SummaryMetricSpec("skewness", "Skewness"),
-    "kurtosis": SummaryMetricSpec("kurtosis", "Kurtosis"),
+    "skewness": SummaryMetricSpec("Skew", "Skewness"),
+    "kurtosis": SummaryMetricSpec("Kurtosis", "Kurtosis"),
     # Win/loss counts and rates
     "win_rate": SummaryMetricSpec("win_rate", "Win Rate", scale=100, suffix="%"),
-    "winning_days": SummaryMetricSpec("winning_days", "Winning Days", decimals=0),
-    "losing_days": SummaryMetricSpec("losing_days", "Losing Days", decimals=0),
+    "winning_days": SummaryMetricSpec("Winning Days", "Winning Days", decimals=0),
+    "losing_days": SummaryMetricSpec("Losing Days", "Losing Days", decimals=0),
     "consecutive_wins": SummaryMetricSpec(
         "winning_days", "Max Consecutive Wins", decimals=0
     ),

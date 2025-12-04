@@ -1045,129 +1045,141 @@ def format_consistency_rows(metrics_series: Any) -> list[dict[str, str]]:
     else:
         m = dict(metrics_series)
 
+    # Helper function to get metric value with backward compatibility
+    def get_metric(new_key: str, old_key: str) -> str:
+        """Get metric with new key, falling back to old key for compatibility.
+
+        Args:
+            new_key: New metric key (e.g., "Best Day %")
+            old_key: Old metric key (e.g., "best_day")
+        """
+        # Try new key first
+        value = m.get(new_key)
+        if value is not None:
+            # New keys have values already scaled (e.g., 3.85 means 3.85%)
+            # so we don't need to scale by 100, just format
+            return _format_metric(value, scale=1, suffix="%")
+
+        # Fall back to old key
+        value = m.get(old_key, 0.0)
+        # Old keys need to be scaled by 100
+        return _format_metric(value, scale=100, suffix="%")
+
     return [
         {
             "label": "Time in Market",
             "value": _format_metric(
-                m.get("time_in_market", 0.0), scale=100, suffix="%"
+                m.get("Time in Market %", m.get("time_in_market", 0.0) * 100),
+                scale=1,
+                suffix="%",
             ),
         },
         {
             "label": "Best Day",
-            "value": _format_metric(m.get("best_day", 0.0), scale=100, suffix="%"),
+            "value": get_metric("Best Day %", "best_day"),
         },
         {
             "label": "Best Week",
-            "value": _format_metric(m.get("best_week", 0.0), scale=100, suffix="%"),
+            "value": get_metric("Best Week %", "best_week"),
         },
         {
             "label": "Best Month",
-            "value": _format_metric(m.get("best_month", 0.0), scale=100, suffix="%"),
+            "value": get_metric("Best Month %", "best_month"),
         },
         {
             "label": "Best Quarter",
-            "value": _format_metric(m.get("best_quarter", 0.0), scale=100, suffix="%"),
+            "value": get_metric("Best Quarter %", "best_quarter"),
         },
         {
             "label": "Best Year",
-            "value": _format_metric(m.get("best_year", 0.0), scale=100, suffix="%"),
+            "value": get_metric("Best Year %", "best_year"),
         },
         {
             "label": "Avg Up Day",
-            "value": _format_metric(m.get("avg_up_day", 0.0), scale=100, suffix="%"),
+            "value": get_metric("Avg. Up Day %", "avg_up_day"),
         },
         {
             "label": "Avg Up Week",
-            "value": _format_metric(m.get("avg_up_week", 0.0), scale=100, suffix="%"),
+            "value": get_metric("Avg. Up Week %", "avg_up_week"),
         },
         {
             "label": "Avg Up Month",
-            "value": _format_metric(m.get("avg_up_month", 0.0), scale=100, suffix="%"),
+            "value": get_metric("Avg. Up Month %", "avg_up_month"),
         },
         {
             "label": "Avg Up Quarter",
-            "value": _format_metric(
-                m.get("avg_up_quarter", 0.0), scale=100, suffix="%"
-            ),
+            "value": get_metric("Avg. Up Quarter %", "avg_up_quarter"),
         },
         {
             "label": "Avg Up Year",
-            "value": _format_metric(m.get("avg_up_year", 0.0), scale=100, suffix="%"),
+            "value": get_metric("Avg. Up Year %", "avg_up_year"),
         },
         {
             "label": "Expected Daily%",
-            "value": _format_metric(
-                m.get("expected_daily", 0.0), scale=100, suffix="%"
-            ),
+            "value": get_metric("Expected Daily %", "expected_daily"),
         },
         {
             "label": "Expected Weekly%",
-            "value": _format_metric(
-                m.get("expected_weekly", 0.0), scale=100, suffix="%"
-            ),
+            "value": get_metric("Expected Weekly %", "expected_weekly"),
         },
         {
             "label": "Expected Monthly%",
-            "value": _format_metric(
-                m.get("expected_monthly", 0.0), scale=100, suffix="%"
-            ),
+            "value": get_metric("Expected Monthly %", "expected_monthly"),
         },
         {
             "label": "Expected Quarterly%",
-            "value": _format_metric(
-                m.get("expected_quarterly", 0.0), scale=100, suffix="%"
-            ),
+            "value": get_metric("Expected Quarterly %", "expected_quarterly"),
         },
         {
             "label": "Expected Yearly%",
-            "value": _format_metric(
-                m.get("expected_yearly", 0.0), scale=100, suffix="%"
-            ),
+            "value": get_metric("Expected Yearly %", "expected_yearly"),
         },
         {
             "label": "Avg Down Day",
-            "value": _format_metric(m.get("avg_down_day", 0.0), scale=100, suffix="%"),
+            "value": get_metric("Avg. Down Day %", "avg_down_day"),
         },
         {
             "label": "Avg Down Week",
-            "value": _format_metric(m.get("avg_down_week", 0.0), scale=100, suffix="%"),
+            "value": get_metric("Avg. Down Week %", "avg_down_week"),
         },
         {
             "label": "Avg Down Month",
-            "value": _format_metric(
-                m.get("avg_down_month", 0.0), scale=100, suffix="%"
-            ),
+            "value": get_metric("Avg. Down Month %", "avg_down_month"),
         },
         {
             "label": "Avg Down Quarter",
-            "value": _format_metric(
-                m.get("avg_down_quarter", 0.0), scale=100, suffix="%"
-            ),
+            "value": get_metric("Avg. Down Quarter %", "avg_down_quarter"),
         },
         {
             "label": "Avg Down Year",
-            "value": _format_metric(m.get("avg_down_year", 0.0), scale=100, suffix="%"),
+            "value": get_metric("Avg. Down Year %", "avg_down_year"),
         },
         {
             "label": "Worst Day",
-            "value": _format_metric(m.get("worst_day", 0.0), scale=100, suffix="%"),
+            "value": get_metric("Worst Day %", "worst_day"),
         },
         {
             "label": "Worst Week",
-            "value": _format_metric(m.get("worst_week", 0.0), scale=100, suffix="%"),
+            "value": get_metric("Worst Week %", "worst_week"),
         },
         {
             "label": "Worst Month",
-            "value": _format_metric(m.get("worst_month", 0.0), scale=100, suffix="%"),
+            "value": get_metric("Worst Month %", "worst_month"),
         },
         {
             "label": "Worst Quarter",
-            "value": _format_metric(m.get("worst_quarter", 0.0), scale=100, suffix="%"),
+            "value": get_metric("Worst Quarter %", "worst_quarter"),
         },
         {
             "label": "Worst Year",
-            "value": _format_metric(m.get("worst_year", 0.0), scale=100, suffix="%"),
+            "value": get_metric("Worst Year %", "worst_year"),
         },
-        {"label": "Winning Days", "value": f"{int(m.get('winning_days', 0))}"},
-        {"label": "Losing Days", "value": f"{int(m.get('losing_days', 0))}"},
+        {
+            "label": "Winning Days",
+            "value": f"{int(m.get('Winning Days', m.get('winning_days', 0)))}",
+        },
+        {
+            "label": "Losing Days",
+            "value": f"{int(m.get('Losing Days', m.get('losing_days', 0)))}",
+        },
     ]
